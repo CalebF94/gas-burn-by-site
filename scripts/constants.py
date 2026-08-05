@@ -1,6 +1,39 @@
 """
-Module contains non confidential variables and mapping dictionaries
+Module contains global variables and mapping dictionaries
 """
+
+## Availability files
+AVAILABILITY_FILES_XLSX = [
+    r"G:\Trading\Market Operations\Unit availability\2026\RT Unit availability 07.26.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2026\RT Unit availability 06.26.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2026\RT Unit availability 05.26.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2026\RT Unit availability 04.26.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2026\RT Unit availability 03.26.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2026\RT Unit availability 02.26.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2026\RT Unit availability 01.26.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2025\RT Unit availability 12.25.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2025\RT Unit availability 11.25.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2025\RT Unit availability 10.25.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2025\RT Unit availability 09.25.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2025\RT Unit availability 08.25.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2025\RT Unit availability 07.25.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2025\RT Unit availability 06.25.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2025\RT Unit availability 05.25 - UPDATE.xlsx",
+    r"G:\Trading\Market Operations\Unit availability\2025\RT Unit availability 04.25 - UPDATE.xlsx"]
+
+AVAILABILITY_FILES_CSV = [
+    r"G:\Trading\Market Operations\Unit availability\2025\dpm_BEPC_GROUPING_2025030100_2025033123 - March.csv",
+    r"G:\Trading\Market Operations\Unit availability\2025\transposed_dpm_BEPC_GROUPING_2025020100_2025022823 feb.csv", 
+    r"G:\Trading\Market Operations\Unit availability\2025\transposed_dpm_BEPC_GROUPING_2025010100_2025013123.csv",
+    r"G:\Trading\Market Operations\Unit availability\2024\dpm_BEPC_GROUPING_2024120100_2024123123.csv",
+    r"G:\Trading\Market Operations\Unit availability\2024\dpm_BEPC_GROUPING_2024110100_2024113023.csv",
+    r"G:\Trading\Market Operations\Unit availability\2024\dpm_BEPC_GROUPING_2024100100_2024103123.csv",
+    r"G:\Trading\Market Operations\Unit availability\2024\dpm_BEPC_GROUPING_2024090100_2024093023.csv",
+    r"G:\Trading\Market Operations\Unit availability\2024\dpm_BEPC_GROUPING_2024080100_2024083123.csv",
+    r"G:\Trading\Market Operations\Unit availability\2024\dpm_BEPC_GROUPING_2024070100_2024073123.csv",
+    r"G:\Trading\Market Operations\Unit availability\2024\dpm_BEPC_GROUPING_2024060100_2024063023.csv",
+    r"G:\Trading\Market Operations\Unit availability\2024\dpm_BEPC_GROUPING_2024050100_2024053123.csv"]
+
 
 ## Mapping dictionaries
 SITE_MAPPINGS = {
@@ -47,3 +80,7 @@ SITE_GENERATION_DATATYPES = {
     'begtime': 'datetime64[ns]',
     'loadshape': 'str'
 }
+
+
+
+

@@ -2,6 +2,10 @@
 Module containing functions for data gathering from Allegro/BigQuery
 """
 import pandas as pd
+import numpy as np
+import time
+import requests
+from datetime import timedelta
 from google.cloud import bigquery
 
 
@@ -33,7 +37,7 @@ def run_date_parameterized_query(client: bigquery.Client, query_string: str, sta
 
 
 
-def run_generation_query(client: bigquery.Client, query_strings: list, start: str, end: str, col_dtypes: dict = None):
+def run_generation_query(client: bigquery.Client, query_strings: list, start: str, end: str, col_dtypes: dict = None) -> pd.DataFrame:
     """
     Function designed to pull generation data based on multiple SQL queries. SQL queries must contain the same column headers
 
@@ -61,86 +65,200 @@ def run_generation_query(client: bigquery.Client, query_strings: list, start: st
 
 
 
-def clean_generation_unit_data(df: pd.DataFrame):
+def pull_unit_availability(excel_files: list, csv_files: list, start_date, end_date)-> dict:
     """
-    Function that takes the unit generation data as input, creates a site variable, calculates gas day, and aggregates at different levels
+    Function pulls unit availability data from files updated by Market Opps team. Function takes lists of Excel and CSV files and combines into a single dataframe
 
     Parameters:
-        df: dataframe containing hourly unit level generation data
+        excel_files: list of Excel files to be loaded. List of files is found in the AVAILABILITY_FILES_XLSX variable in the constants.py script
+        csv_files: list of CSV files to be loaded. List of files is found in the AVAILABILITY_FILES_CSV variable in the constants.py script
+        start_date: Earliest date to return
+        end_date: Latest date to return
 
-    Returns: 
-        A dictionary with cleaned generation data at different aggregations
+    Returns:
+        Returns a dict with two dataframes with availability data at different aggregation levels. The two dataframes returned are:
+        "unit_availability_df", "site_availability_df"
     """
-    unit_df = df.copy()
+    excel_dfs = []
+    for file in excel_files:
+        df = pd.read_excel(file, sheet_name="Gas HEL Transposed")
+        df["source_file"] = file
+        excel_dfs.append(df)
 
-    #adding a site column based on the loadshape name
-    conditions = [
-        unit_df["loadshape"].str.upper().str.contains("DCS"),
-        unit_df["loadshape"].str.upper().str.contains("LCS"),
-        unit_df["loadshape"].str.upper().str.contains("PGS"),
-        unit_df["loadshape"].str.upper().str.contains("GGS"),
-        unit_df["loadshape"].str.upper().str.contains("CGS")
-    ]
+    excel_combined = pd.concat(excel_dfs, ignore_index=True)
 
-    choices = ["DCS", "LCS", "PGS", "GGS", "CGS"]
+    csv_dfs = []
+    for file in csv_files:
+        df = pd.read_csv(file)
+        df["source_file"] = file
+        csv_dfs.append(df)
 
-    unit_df['site'] = np.select(conditions, choices, default="N/A")
+    csv_combined = pd.concat(csv_dfs, ignore_index=True)
 
-    #Unpivoting columns using melt() function
-    hour_cols = [column for column in unit_df.columns if column.startswith("he")]
-    hourly_unit_generation_df = unit_df.melt(id_vars=["begtime", "site", "loadshape"], value_vars=hour_cols, var_name="hour", value_name="hourly_mw")
-    #print(hourly_unit_generation_df['hourly_mw'].sum()) # may take out
+    #Concat the csvs and the excel files
+    combined_df = pd.concat([excel_combined, csv_combined], ignore_index=True)
 
-    #Create hour (numeric column) for Datetime creation
-    hourly_unit_generation_df["hour_num"] = hourly_unit_generation_df["hour"].str[-2:].astype(int)
+    #Making all column names lowercase and remove spaces
+    combined_df.columns = (combined_df.columns.str.strip().str.lower())
 
-    #create a datetime column and related gas_day column
-    hourly_unit_generation_df["datetime"] = (pd.to_datetime(hourly_unit_generation_df["begtime"]) + pd.to_timedelta(hourly_unit_generation_df["hour_num"] - 0, unit="h"))
-    hourly_unit_generation_df['gas_day'] = (pd.to_datetime(hourly_unit_generation_df["datetime"]) - pd.Timedelta(hours=10)).dt.date
-    hourly_unit_generation_df['gas_day'] = pd.to_datetime(hourly_unit_generation_df['gas_day'])
-    #print(hourly_unit_generation_df['hourly_mw'].sum()) # may take out
+    #Making datetime column in datetime format
+    combined_df["datetime"] = pd.to_datetime( combined_df["datetime"], errors="coerce")
 
-
-    #Reordering columns for visual 
-    hourly_unit_generation_df = (
-        hourly_unit_generation_df[["datetime","gas_day", "hour", "site", "loadshape", "hourly_mw"]]
-        .sort_values(by = ['site', 'datetime'], ascending=[False, True])
-    )
-    print(hourly_unit_generation_df['hourly_mw'].sum()) # may take out
+    #Sorting chronologically
+    combined_df = (combined_df.sort_values("datetime").reset_index(drop=True))
 
 
-    # Aggregating by site
-    hourly_site_generation_df = (
-        hourly_unit_generation_df.groupby(["datetime", "gas_day", "hour", "site"], as_index=False)["hourly_mw"]
-        .sum()
-        .rename(columns={"hourly_mw": "hourly_site_gen_mw"})
-        .sort_values(by = ['site', 'datetime'], ascending=[False, True])
-    )
-    #print(hourly_site_generation_df['hourly_site_gen_mw'].sum()) # may take out
+    #Data cleaning and formatting
+    combined_df.columns = combined_df.columns.astype(str).str.strip().str.replace(r"\s+", " ", regex=True)
 
+    combined_df = combined_df.dropna(subset = ['datetime'], axis=0) # drops rows that don't have dates due to daylight savings shifts
+    
+    value_cols = [col for col in combined_df.columns if isinstance(col, str) and "high effective limit" in col]
 
-    daily_site_generation_by_gas_day_df = (
-        hourly_unit_generation_df.groupby(["gas_day", "site"], as_index=False)["hourly_mw"]
-        .sum()
-        .rename(columns={"hourly_mw": "hourly_site_gen_mw"})
-        .sort_values(by = ['site', 'gas_day'], ascending=[False, True])
-    )
-    #print(daily_site_generation_by_gas_day_df['hourly_site_gen_mw'].sum()) # may take out
+    unit_availability_df = combined_df.melt(id_vars=["datetime"], value_vars=value_cols, var_name="unit", value_name="availability_mw")
 
+    unit_availability_df["site"] = unit_availability_df["unit"].str.extract(r"^(cgs|dcs|ggs|lcs|pgs)", expand=False).str.strip().str.upper()
+    unit_availability_df = unit_availability_df.sort_values(by=["site", "unit", "datetime"])[["datetime","site", "unit", "availability_mw"]]
+    unit_availability_df = unit_availability_df[(unit_availability_df['datetime'] >= start_date) & (unit_availability_df['datetime'] <= end_date)]
 
-    daily_site_generation_df = (
-        hourly_unit_generation_df.groupby(["datetime", "site"], as_index=False)["hourly_mw"]
-        .sum()
-        .rename(columns={"hourly_mw": "hourly_site_gen_mw"})
-        .sort_values(by = ['site', 'datetime'], ascending=[False, True])
-    )
-    #print(daily_site_generation_df['hourly_site_gen_mw'].sum()) # may take out
-
-
+    site_availability_df = unit_availability_df.groupby(["datetime", 'site']).agg({"availability_mw": "sum"}).reset_index()
+    site_availability_df = site_availability_df.sort_values(by=["site", "datetime"])[["datetime","site", "availability_mw"]]
+    site_availability_df = site_availability_df[(site_availability_df['datetime'] >= start_date) & (site_availability_df['datetime'] <= end_date)]
 
     return {
-        'hourly_unit_generation_df': hourly_unit_generation_df, 
-        'hourly_site_generation_df': hourly_site_generation_df, 
-        'daily_site_generation_by_gas_day_df': daily_site_generation_by_gas_day_df, 
-        'daily_site_generation_df': daily_site_generation_df
-    }
+        "unit_availability_df": unit_availability_df,
+        "site_availability_df": site_availability_df
+        }
+
+
+def pull_yes_forecast_historical(user, password, start_date, end_date):
+    """
+    Function pulls forecast data from YES Energy via API. Note the hours here are hour ending which is different than Allegro I believe
+
+    Parameters:
+        user:
+        password:
+        start_date:
+        end_date:
+
+    Returns:
+        Dataframe 
+    """
+    start = pd.to_datetime(start_date)
+    end = pd.to_datetime(end_date)
+
+    df_forecast = []
+
+    while start <= end:
+
+        month_start = start.replace(day=1)
+        month_end = month_start + pd.offsets.MonthEnd(1)
+
+        if month_end > end:
+            month_end = end
+
+        print(f"Pulling forecast: {month_start.date()} ---> {month_end.date()}")
+
+        url = ( "https://services.yesenergy.com/PS/rest/timeseries/multiple.json?agglevel=hour&timezone=CPT"
+            f"&startdate={month_start.date()}"
+            f"&enddate={month_end.date()}"
+            "&items="
+            "LOAD_FORECAST:10017060648,"
+            "NET_LOAD_FORECAST_CURRENT:10017060648,"
+            "NG_CAPACITY_OFFLINE:10017060648,"
+            "COAL_CAPACITY_OFFLINE:10017060648,"
+            "WINDFCST_HOURLY:10004185377,"
+            "WINDFCST_HOURLY:10004185378,"
+            "WINDFCST_HOURLY:10004185379,"
+            "WINDFCST_HOURLY:10004185380,"
+            "WINDFCST_HOURLY:10004185381,"
+            "WSI_FC15_FEEL:10000355230,"
+            "WSI_FC15_FEEL:10000355704,"
+            "WSI_FC15_FEEL:10000356081,"
+            "WSI_FC15_WIND:10000355230,"
+            "WSI_FC15_WIND:10000355704" )
+
+
+        response = requests.get(url, auth=(user, password), verify=False, timeout=120)
+        response.raise_for_status()
+        
+        # processing after successful data pull
+        df_chunk = pd.DataFrame(response.json())
+       
+        df_chunk.columns = df_chunk.columns.map(lambda x: str(x).strip())
+
+        df_forecast.append(df_chunk)
+
+        time.sleep(6)  
+
+        start = month_end + timedelta(days=1)
+
+    return pd.concat(df_forecast, ignore_index=True)
+
+
+def pull_yes_actual_historical(user, password, start_date, end_date) -> pd.DataFrame:
+    """
+    Function to pull actual data from the YES Energy API.
+
+    Parameters:
+        user: YES Energy API Username
+        password: YES Energy API Password
+        start_date: First date of data to pull
+        end_date: Last date of data to pull
+
+    Returns:
+        dataframe with data
+    """
+
+    start = pd.to_datetime(start_date)
+    end = pd.to_datetime(end_date)
+
+    df_actual = []
+
+    while start <= end:
+
+        month_start = start.replace(day=1)
+        month_end = month_start + pd.offsets.MonthEnd(1)
+
+        if month_end > end:
+            month_end = end
+
+        print(f"Pulling actuals: {month_start.date()} ---> {month_end.date()}")
+
+        url = ("https://services.yesenergy.com/PS/rest/timeseries/multiple.json?agglevel=hour&timezone=CPT"
+            f"&startdate={month_start.date()}"
+            f"&enddate={month_end.date()}"
+            "&items="
+            #day ahead close so just in actual
+            "BIDCLOSE_LOAD_FORECAST:10017060648,"
+            "NET_LOAD_FORECAST_BID_CLOSE:10017060648,"
+            "NG_CAPACITY_OFFLINE:10017060648,"
+            "COAL_CAPACITY_OFFLINE:10017060648,"
+            "WINDGEN_HOURLY:10004185377,"
+            "WINDGEN_HOURLY:10004185378,"
+            "WINDGEN_HOURLY:10004185379,"
+            "WINDGEN_HOURLY:10004185380,"
+            "WINDGEN_HOURLY:10004185381,"
+            "WSI_TRADER_FEELS_TEMP:10000355230,"
+            "WSI_TRADER_FEELS_TEMP:10000355704,"
+            "WSI_TRADER_FEELS_TEMP:10000356081,"
+            "WSI_TRADER_WIND:10000355230,"
+            "WSI_TRADER_WIND:10000355704")
+
+
+        response = requests.get(url, auth=(user, password), verify=False, timeout=120)
+        #response.raise_for_status()
+
+
+        df_chunk = pd.DataFrame(response.json())
+        df_chunk.columns = df_chunk.columns.map(lambda x: str(x).strip())
+
+        df_actual.append(df_chunk)
+        
+        time.sleep(6)  
+
+        start = month_end + timedelta(days=1)
+
+    return pd.concat(df_actual, ignore_index=True)
+
+
