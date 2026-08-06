@@ -45,6 +45,13 @@ SITE_MAPPINGS = {
     "CULBERTSON": "CGS"
 }
 
+SITE_GENERATION_LIMITS = {
+    "CGS": 95, 
+    "DCS": 297, 
+    "LCS": 270, 
+    "PGS": 803.4, 
+    "GGS": 190
+}
 
 SITE_BURN_DATATYPES = {
     'marketarea': 'str',
