@@ -7,9 +7,10 @@ import time
 import requests
 from datetime import timedelta
 from google.cloud import bigquery
+from constants import SITE_MAPPINGS
 
 
-def run_date_parameterized_query(client: bigquery.Client, query_string: str, start: str, end: str, col_dtypes: dict = None):
+def _run_date_parameterized_query(client: bigquery.Client, query_string: str, start: str, end: str, col_dtypes: dict = None):
     """
     Runs a query within a specified date range
     
@@ -54,7 +55,7 @@ def run_generation_query(client: bigquery.Client, query_strings: list, start: st
     for idx, query in enumerate(query_strings):
     
         df_name = f'df{idx}'
-        dfs[df_name] = run_date_parameterized_query(client, query, start, end)
+        dfs[df_name] = _run_date_parameterized_query(client, query, start, end)
     
     dfs_appended = pd.concat(dfs, ignore_index=True)
 
@@ -63,6 +64,35 @@ def run_generation_query(client: bigquery.Client, query_strings: list, start: st
 
     return dfs_appended
 
+
+def run_natural_gas_burn_query(client: bigquery.Client, query_strings: list, start: str, end: str, col_dtypes: dict = None) -> pd.DataFrame:
+    """
+    Function designed to pull generation data based on multiple SQL queries. SQL queries must contain the same column headers
+
+    Parameters:
+        client: Session bigquery.client object
+        query_strings: SQL queries
+        start: Earliest date of data to pull from database
+        end: Latest date of data to pull from database
+        col_type: dictionary containing column name to datatype mappings
+
+    """
+        
+    dfs = {}
+    for idx, query in enumerate(query_strings):
+    
+        df_name = f'df{idx}'
+        dfs[df_name] = _run_date_parameterized_query(client, query, start, end)
+    
+    dfs_appended = pd.concat(dfs, ignore_index=True)
+
+    if col_dtypes: 
+        dfs_appended = dfs_appended.astype(col_dtypes)
+
+    dfs_appended['site'] = dfs_appended['marketarea'].replace(SITE_MAPPINGS)
+    dfs_appended = dfs_appended[['gas_day', 'site', 'energy']].rename(columns={'energy': 'gas_burn_MMBtu'})
+
+    return dfs_appended
 
 
 def pull_unit_availability(excel_files: list, csv_files: list, start_date, end_date)-> dict:
