@@ -20,7 +20,7 @@ import pydata_google_auth
 #import time
 from datetime import date#, timedelta, datetime
 import urllib3
-#from pathlib import Path
+from pathlib import Path
 
 from scripts.queries import GAS_BURN_QUERY, NON_PGS_GENERATION_QUERY, PGS_GENERATION_QUERY
 from scripts.constants import SITE_MAPPINGS, SITE_BURN_DATATYPES, SITE_GENERATION_DATATYPES, AVAILABILITY_FILES_XLSX, AVAILABILITY_FILES_CSV
@@ -119,6 +119,9 @@ def gather_historic_data(start: str = start, end: str = end, save_output: bool =
     ## Confirmation ##
     ##################
     if save_output: 
+        folder = Path("./data/processed-data/")
+        if not folder.exists():
+            folder.mkdir(parents=True)
         file_name = './data/processed-data/historic_data_df.csv'
         merged_df.to_csv(file_name, index=False)
         print(f'A file containing the merged data has been saved to {file_name}')
