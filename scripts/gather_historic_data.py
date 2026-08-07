@@ -91,8 +91,29 @@ def gather_historic_data(start: str = start, end: str = end, save_output: bool =
     merged_df = merged_df.merge(site_availability_df, how='left', on=['datetime', 'site'])
     merged_df = merged_df.merge(yes_historical_forecast_cleaned_df, how='left', on=['datetime'])
     merged_df = merged_df.merge(yes_historical_actual_cleaned_df, how='left', on=['datetime'])
-    merged_df['hourly_gas_burn_MMBtu'] =  (merged_df['daily_gas_burn_MMBtu'] / merged_df['daily_site_gen_mw']) * merged_df['hourly_site_gen_mw']
 
+
+    ####################
+    ## Adding columns ##
+    ####################
+    merged_df['hourly_gas_burn_MMBtu'] =  (merged_df['daily_gas_burn_MMBtu'] / merged_df['daily_site_gen_mw']) * merged_df['hourly_site_gen_mw']
+    merged_df["hour"] = merged_df["datetime"].dt.hour
+    merged_df["day_of_week"] = merged_df["datetime"].dt.dayofweek
+    merged_df["day"] = merged_df["datetime"].dt.day
+    merged_df["month"] = merged_df["datetime"].dt.month
+    merged_df['year'] = merged_df['datetime'].dt.year
+    merged_df['gas_day'] = (pd.to_datetime(merged_df["datetime"]) - pd.Timedelta(hours=10)).dt.date
+    merged_df['hour_end'] = merged_df['hour'] + 1
+    merged_df['hour_end'] = 'HE' + merged_df['hour_end'].astype(str)
+
+
+    #########################
+    ## Rearranging Columns ##
+    #########################
+    lead_columns = ['datetime', 'site', 'year', 'month', 'day', 'hour', 'hour_end', 'day_of_week', 'gas_day', 'hourly_gas_burn_MMBtu', 'daily_gas_burn_MMBtu']
+    tail_columns = [cols for cols in list(merged_df.columns) if (cols not in lead_columns)]
+
+    merged_df = merged_df.loc[:, lead_columns +  tail_columns]
 
     ##################
     ## Confirmation ##
