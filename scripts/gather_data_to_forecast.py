@@ -1,0 +1,89 @@
+"""
+Gather Data to Forecast
+
+Module is intended to pull and assemble a dataframe containing data that needs to be forecasted.
+
+Process:
+    1. Gathers site availability data from latest forward looking file ('G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Transposed Forward Looking Data') or from a user provided file
+    2. Gathers Yes Energy forecast data using the pull_yes_forecast_historical() function from the data_pull_functions.py module
+    3. Merges the site availability data and the Yes Energy data based on datetime
+    4. Constructs date time attributes
+    5. Optional -  Limits columns returned to align with 'feature_names_in_' used in the predictive model
+"""
+
+import os
+import sys
+import pandas as pd
+import urllib3
+from pathlib import Path
+from dotenv import load_dotenv
+
+from scripts.data_pull_functions import pull_yes_forecast_historical, pull_unit_availability
+from scripts.data_clean_functions import clean_yes_forecast
+
+load_dotenv()
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+def gather_data_to_forecast(forecast_start, forecast_end, availability_file: str = "", forecast_features: list = [], save_output: bool = False) -> pd.DataFrame:
+    """
+    Function pulls data based on a date range that is intended to be forecasted.
+
+    Parameters:
+        forecast_start: first date to be included in the data
+        forecast_end: last date to be included in the data
+        availability_file: file location containing hourly unit level MW availability. If left blank, function will default to the most recently created file in the Transposed Forward Looking Data folder
+        forecast_features: list of column names that should be returned. Will likely need to align with the 'feature_names_in_' attribute from the predictive model
+
+    Returns:
+        dataframe containing data to be forecasted
+    """
+
+    #####################################################################
+    ## Load Availability Data                                          ##
+    ## Defaults to Transposed Forward Lookin Data if no file specified ##
+    #####################################################################
+    if availability_file:
+        latest_file = availability_file
+    else:
+        directory = Path('G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Transposed Forward Looking Data')
+        latest_file = str(max(directory.glob('*'), key=lambda f: f.stat().st_birthtime))
+
+    future_site_availability_df = pull_unit_availability(excel_files=[latest_file], csv_files=[], sheet='Transposed', start_date=forecast_start, end_date=forecast_end)['site_availability_df']
+
+
+    #############################
+    ## Loading Yes Energy data ##
+    #############################
+    future_yes_data_df = pull_yes_forecast_historical(os.getenv('YES_USERNAME'), os.getenv('YES_PASSWORD'), forecast_start, forecast_end)
+    future_yes_data_df = clean_yes_forecast(future_yes_data_df)
+
+    ###############################
+    ## Merging based on datetime ##
+    ###############################
+    future_data_to_forecast_df = future_site_availability_df.merge(future_yes_data_df, how='left', on=['datetime'])
+
+    #####################################
+    ## Adding common datetime features ##
+    ##################################### 
+    future_data_to_forecast_df["hour"] = future_data_to_forecast_df["datetime"].dt.hour
+    future_data_to_forecast_df["day_of_week"] = future_data_to_forecast_df["datetime"].dt.dayofweek
+    future_data_to_forecast_df["day"] = future_data_to_forecast_df["datetime"].dt.day
+    future_data_to_forecast_df["month"] = future_data_to_forecast_df["datetime"].dt.month
+    future_data_to_forecast_df['year'] = future_data_to_forecast_df['datetime'].dt.year
+    future_data_to_forecast_df['gas_day'] = (pd.to_datetime(future_data_to_forecast_df["datetime"]) - pd.Timedelta(hours=10)).dt.date
+    future_data_to_forecast_df['hour_end'] = future_data_to_forecast_df['hour'] + 1
+    future_data_to_forecast_df['hour_end'] = 'HE' + future_data_to_forecast_df['hour_end'].astype(str)
+
+    future_data_to_forecast_df = future_data_to_forecast_df.loc[:, forecast_features] if forecast_features else future_data_to_forecast_df
+
+    ##################
+    ## Confirmation ##
+    ##################
+    if save_output: 
+        file_name = './data/processed-data/data_to_forecast_df.csv'
+        future_data_to_forecast_df.to_csv(file_name, index=False)
+        print(f'A file containing the future data to has been saved to {file_name}')
+
+
+    return future_data_to_forecast_df

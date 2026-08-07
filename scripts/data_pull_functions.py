@@ -7,7 +7,7 @@ import time
 import requests
 from datetime import timedelta
 from google.cloud import bigquery
-from constants import SITE_MAPPINGS
+from scripts.constants import SITE_MAPPINGS
 
 
 def _run_date_parameterized_query(client: bigquery.Client, query_string: str, start: str, end: str, col_dtypes: dict = None):
@@ -90,20 +90,21 @@ def run_natural_gas_burn_query(client: bigquery.Client, query_strings: list, sta
         dfs_appended = dfs_appended.astype(col_dtypes)
 
     dfs_appended['site'] = dfs_appended['marketarea'].replace(SITE_MAPPINGS)
-    dfs_appended = dfs_appended[['gas_day', 'site', 'energy']].rename(columns={'energy': 'gas_burn_MMBtu'})
+    dfs_appended = dfs_appended[['gas_day', 'site', 'energy']].rename(columns={'energy': 'daily_gas_burn_MMBtu'})
 
     return dfs_appended
 
 
-def pull_unit_availability(excel_files: list, csv_files: list, start_date, end_date)-> dict:
+def pull_unit_availability(excel_files: list, csv_files: list, sheet: str='Sheet1', start_date: str = '1900-01-01', end_date: str = '2100-12-31')-> dict:
     """
     Function pulls unit availability data from files updated by Market Opps team. Function takes lists of Excel and CSV files and combines into a single dataframe
 
     Parameters:
         excel_files: list of Excel files to be loaded. List of files is found in the AVAILABILITY_FILES_XLSX variable in the constants.py script
         csv_files: list of CSV files to be loaded. List of files is found in the AVAILABILITY_FILES_CSV variable in the constants.py script
-        start_date: Earliest date to return
-        end_date: Latest date to return
+        sheet: For excel_files, names the sheet containing the data to pull
+        start_date: Earliest date to return. Filtering occurs at end of processing and doesn't impact which files are imported.
+        end_date: Latest date to return. Filtering occurs at end of processing and doesn't impact which files are imported.
 
     Returns:
         Returns a dict with two dataframes with availability data at different aggregation levels. The two dataframes returned are:
@@ -111,11 +112,11 @@ def pull_unit_availability(excel_files: list, csv_files: list, start_date, end_d
     """
     excel_dfs = []
     for file in excel_files:
-        df = pd.read_excel(file, sheet_name="Gas HEL Transposed")
+        df = pd.read_excel(file, sheet_name=sheet)
         df["source_file"] = file
         excel_dfs.append(df)
 
-    excel_combined = pd.concat(excel_dfs, ignore_index=True)
+    excel_combined = pd.concat(excel_dfs, ignore_index=True) if excel_dfs else pd.DataFrame()
 
     csv_dfs = []
     for file in csv_files:
@@ -123,7 +124,7 @@ def pull_unit_availability(excel_files: list, csv_files: list, start_date, end_d
         df["source_file"] = file
         csv_dfs.append(df)
 
-    csv_combined = pd.concat(csv_dfs, ignore_index=True)
+    csv_combined = pd.concat(csv_dfs, ignore_index=True) if csv_dfs else pd.DataFrame()
 
     #Concat the csvs and the excel files
     combined_df = pd.concat([excel_combined, csv_combined], ignore_index=True)
@@ -179,49 +180,39 @@ def pull_yes_forecast_historical(user, password, start_date, end_date):
 
     df_forecast = []
 
-    while start <= end:
-
-        month_start = start.replace(day=1)
-        month_end = month_start + pd.offsets.MonthEnd(1)
-
-        if month_end > end:
-            month_end = end
-
-        print(f"Pulling forecast: {month_start.date()} ---> {month_end.date()}")
-
-        url = ( "https://services.yesenergy.com/PS/rest/timeseries/multiple.json?agglevel=hour&timezone=CPT"
-            f"&startdate={month_start.date()}"
-            f"&enddate={month_end.date()}"
-            "&items="
-            "LOAD_FORECAST:10017060648,"
-            "NET_LOAD_FORECAST_CURRENT:10017060648,"
-            "NG_CAPACITY_OFFLINE:10017060648,"
-            "COAL_CAPACITY_OFFLINE:10017060648,"
-            "WINDFCST_HOURLY:10004185377,"
-            "WINDFCST_HOURLY:10004185378,"
-            "WINDFCST_HOURLY:10004185379,"
-            "WINDFCST_HOURLY:10004185380,"
-            "WINDFCST_HOURLY:10004185381,"
-            "WSI_FC15_FEEL:10000355230,"
-            "WSI_FC15_FEEL:10000355704,"
-            "WSI_FC15_FEEL:10000356081,"
-            "WSI_FC15_WIND:10000355230,"
-            "WSI_FC15_WIND:10000355704" )
 
 
-        response = requests.get(url, auth=(user, password), verify=False, timeout=120)
-        response.raise_for_status()
+    print(f"Pulling forecast: {start.date()} ---> {end.date()}")
+
+    url = ( "https://services.yesenergy.com/PS/rest/timeseries/multiple.json?agglevel=hour&timezone=CPT"
+        f"&startdate={start}"
+        f"&enddate={end}"
+        "&items="
+        "LOAD_FORECAST:10017060648,"
+        "NET_LOAD_FORECAST_CURRENT:10017060648,"
+        "NG_CAPACITY_OFFLINE:10017060648,"
+        "COAL_CAPACITY_OFFLINE:10017060648,"
+        "WINDFCST_HOURLY:10004185377,"
+        "WINDFCST_HOURLY:10004185378,"
+        "WINDFCST_HOURLY:10004185379,"
+        "WINDFCST_HOURLY:10004185380,"
+        "WINDFCST_HOURLY:10004185381,"
+        "WSI_FC15_FEEL:10000355230,"
+        "WSI_FC15_FEEL:10000355704,"
+        "WSI_FC15_FEEL:10000356081,"
+        "WSI_FC15_WIND:10000355230,"
+        "WSI_FC15_WIND:10000355704" )
+
+
+    response = requests.get(url, auth=(user, password), verify=False, timeout=120)
+    response.raise_for_status()
         
-        # processing after successful data pull
-        df_chunk = pd.DataFrame(response.json())
+    # processing after successful data pull
+    df_chunk = pd.DataFrame(response.json())
        
-        df_chunk.columns = df_chunk.columns.map(lambda x: str(x).strip())
+    df_chunk.columns = df_chunk.columns.map(lambda x: str(x).strip())
 
-        df_forecast.append(df_chunk)
-
-        time.sleep(6)  
-
-        start = month_end + timedelta(days=1)
+    df_forecast.append(df_chunk)
 
     return pd.concat(df_forecast, ignore_index=True)
 
@@ -245,49 +236,38 @@ def pull_yes_actual_historical(user, password, start_date, end_date) -> pd.DataF
 
     df_actual = []
 
-    while start <= end:
 
-        month_start = start.replace(day=1)
-        month_end = month_start + pd.offsets.MonthEnd(1)
+    print(f"Pulling actuals: {start.date()} ---> {end.date()}")
 
-        if month_end > end:
-            month_end = end
-
-        print(f"Pulling actuals: {month_start.date()} ---> {month_end.date()}")
-
-        url = ("https://services.yesenergy.com/PS/rest/timeseries/multiple.json?agglevel=hour&timezone=CPT"
-            f"&startdate={month_start.date()}"
-            f"&enddate={month_end.date()}"
-            "&items="
-            #day ahead close so just in actual
-            "BIDCLOSE_LOAD_FORECAST:10017060648,"
-            "NET_LOAD_FORECAST_BID_CLOSE:10017060648,"
-            "NG_CAPACITY_OFFLINE:10017060648,"
-            "COAL_CAPACITY_OFFLINE:10017060648,"
-            "WINDGEN_HOURLY:10004185377,"
-            "WINDGEN_HOURLY:10004185378,"
-            "WINDGEN_HOURLY:10004185379,"
-            "WINDGEN_HOURLY:10004185380,"
-            "WINDGEN_HOURLY:10004185381,"
-            "WSI_TRADER_FEELS_TEMP:10000355230,"
-            "WSI_TRADER_FEELS_TEMP:10000355704,"
-            "WSI_TRADER_FEELS_TEMP:10000356081,"
-            "WSI_TRADER_WIND:10000355230,"
-            "WSI_TRADER_WIND:10000355704")
+    url = ("https://services.yesenergy.com/PS/rest/timeseries/multiple.json?agglevel=hour&timezone=CPT"
+        f"&startdate={start.date()}"
+        f"&enddate={end.date()}"
+        "&items="
+        #day ahead close so just in actual
+        "BIDCLOSE_LOAD_FORECAST:10017060648,"
+        "NET_LOAD_FORECAST_BID_CLOSE:10017060648,"
+        "NG_CAPACITY_OFFLINE:10017060648,"
+        "COAL_CAPACITY_OFFLINE:10017060648,"
+        "WINDGEN_HOURLY:10004185377,"
+        "WINDGEN_HOURLY:10004185378,"
+        "WINDGEN_HOURLY:10004185379,"
+        "WINDGEN_HOURLY:10004185380,"
+        "WINDGEN_HOURLY:10004185381,"
+        "WSI_TRADER_FEELS_TEMP:10000355230,"
+        "WSI_TRADER_FEELS_TEMP:10000355704,"
+        "WSI_TRADER_FEELS_TEMP:10000356081,"
+        "WSI_TRADER_WIND:10000355230,"
+        "WSI_TRADER_WIND:10000355704")
 
 
-        response = requests.get(url, auth=(user, password), verify=False, timeout=120)
-        #response.raise_for_status()
+    response = requests.get(url, auth=(user, password), verify=False, timeout=120)
+    #response.raise_for_status()
 
 
-        df_chunk = pd.DataFrame(response.json())
-        df_chunk.columns = df_chunk.columns.map(lambda x: str(x).strip())
+    df_chunk = pd.DataFrame(response.json())
+    df_chunk.columns = df_chunk.columns.map(lambda x: str(x).strip())
 
-        df_actual.append(df_chunk)
-        
-        time.sleep(6)  
-
-        start = month_end + timedelta(days=1)
+    df_actual.append(df_chunk)
 
     return pd.concat(df_actual, ignore_index=True)
 
