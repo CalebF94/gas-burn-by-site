@@ -125,4 +125,3 @@ def gather_historic_data(start: str = start, end: str = end, save_output: bool =
         file_name = './data/processed-data/historic_data_df.csv'
         merged_df.to_csv(file_name, index=False)
         print(f'A file containing the merged data has been saved to {file_name}')
-
