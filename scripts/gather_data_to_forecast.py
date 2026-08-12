@@ -12,20 +12,27 @@ Process:
 """
 
 import os
-import sys
+#import sys
 import pandas as pd
 import urllib3
 from pathlib import Path
 from dotenv import load_dotenv
+#from google.cloud import bigquery
+#import pydata_google_auth
 
 from scripts.data_pull_functions import pull_yes_forecast_historical, pull_unit_availability
 from scripts.data_clean_functions import clean_yes_forecast
+from scripts.feature_engineering_functions import add_time_features
+from scripts.merge_dataset_functions import merge_data_to_forecast
 
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-def gather_data_to_forecast(forecast_start, forecast_end, availability_file: str = "", forecast_features: list = [], save_output: bool = False) -> pd.DataFrame:
+def gather_data_to_forecast(forecast_start, forecast_end, 
+                            availability_file: str = "", forecast_features: list = None, 
+                            yes_username: str = os.getenv('YES_USERNAME'), yes_password:str = os.getenv('YES_PASSWORD'),
+                            save_output: bool = False) -> pd.DataFrame:
     """
     Function pulls data based on a date range that is intended to be forecasted.
 
@@ -55,31 +62,43 @@ def gather_data_to_forecast(forecast_start, forecast_end, availability_file: str
     #############################
     ## Loading Yes Energy data ##
     #############################
-    future_yes_data_df = pull_yes_forecast_historical(os.getenv('YES_USERNAME'), os.getenv('YES_PASSWORD'), forecast_start, forecast_end)
+    future_yes_data_df = pull_yes_forecast_historical(yes_username, yes_password, forecast_start, forecast_end)
     future_yes_data_df = clean_yes_forecast(future_yes_data_df)
 
     ###############################
     ## Merging based on datetime ##
     ###############################
-    future_data_to_forecast_df = future_site_availability_df.merge(future_yes_data_df, how='left', on=['datetime'])
+    #future_data_to_forecast_df = future_site_availability_df.merge(future_yes_data_df, how='left', on=['datetime'])
+    future_data_to_forecast_df = merge_data_to_forecast(future_site_availability_df, future_yes_data_df)
 
     #####################################
     ## Adding common datetime features ##
     ##################################### 
-    future_data_to_forecast_df["hour"] = future_data_to_forecast_df["datetime"].dt.hour
-    future_data_to_forecast_df["day_of_week"] = future_data_to_forecast_df["datetime"].dt.dayofweek
-    future_data_to_forecast_df["day"] = future_data_to_forecast_df["datetime"].dt.day
-    future_data_to_forecast_df["month"] = future_data_to_forecast_df["datetime"].dt.month
-    future_data_to_forecast_df['year'] = future_data_to_forecast_df['datetime'].dt.year
-    future_data_to_forecast_df['gas_day'] = (pd.to_datetime(future_data_to_forecast_df["datetime"]) - pd.Timedelta(hours=10)).dt.date
-    future_data_to_forecast_df['hour_end'] = future_data_to_forecast_df['hour'] + 1
-    future_data_to_forecast_df['hour_end'] = 'HE' + future_data_to_forecast_df['hour_end'].astype(str)
+    future_data_to_forecast_df = add_time_features(future_data_to_forecast_df)
+    ## USE add_time_features() function instead
+    #future_data_to_forecast_df["hour"] = future_data_to_forecast_df["datetime"].dt.hour
+    #future_data_to_forecast_df["day_of_week"] = future_data_to_forecast_df["datetime"].dt.dayofweek
+    #future_data_to_forecast_df["day"] = future_data_to_forecast_df["datetime"].dt.day
+    #future_data_to_forecast_df["month"] = future_data_to_forecast_df["datetime"].dt.month
+    #future_data_to_forecast_df['year'] = future_data_to_forecast_df['datetime'].dt.year
+    #future_data_to_forecast_df['gas_day'] = (pd.to_datetime(future_data_to_forecast_df["datetime"]) - #pd.Timedelta(hours=10)).dt.date
+    #future_data_to_forecast_df['hour_end'] = future_data_to_forecast_df['hour'] + 1
+    #future_data_to_forecast_df['hour_end'] = 'HE' + future_data_to_forecast_df['hour_end'].astype(str)
 
     future_data_to_forecast_df = future_data_to_forecast_df.loc[:, forecast_features] if forecast_features else future_data_to_forecast_df
 
     ##################
     ## Confirmation ##
     ##################
+    if save_output: 
+        folder = Path("./data/processed-data/")
+        if not folder.exists():
+            folder.mkdir(parents=True)
+        file_name = './data/processed-data/data_to_forecast_df.csv'
+        future_data_to_forecast_df.to_csv(file_name, index=False)
+        print(f'A file containing the future data to has been saved to {file_name}')
+
+
     if save_output: 
         file_name = './data/processed-data/data_to_forecast_df.csv'
         future_data_to_forecast_df.to_csv(file_name, index=False)

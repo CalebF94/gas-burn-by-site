@@ -3,12 +3,12 @@ Module containing functions for data cleaning
 """
 import pandas as pd
 import numpy as np
-import time
-import requests
-from datetime import timedelta
+#import time
+#import requests
+#from datetime import timedelta
 
 
-def clean_generation_unit_data(df: pd.DataFrame):
+def clean_generation_unit_data(df: pd.DataFrame) -> dict:
     """
     Function that takes the unit generation data as input, creates a site variable, calculates gas day, and aggregates at different levels
 
@@ -37,7 +37,6 @@ def clean_generation_unit_data(df: pd.DataFrame):
     #Unpivoting columns using melt() function
     hour_cols = [column for column in unit_df.columns if column.startswith("he")]
     hourly_unit_generation_df = unit_df.melt(id_vars=["begtime", "site", "loadshape"], value_vars=hour_cols, var_name="hour", value_name="hourly_mw")
-    #print(hourly_unit_generation_df['hourly_mw'].sum()) # may take out
 
     #Create hour (numeric column) for Datetime creation
     hourly_unit_generation_df["hour_num"] = hourly_unit_generation_df["hour"].str[-2:].astype(int)
@@ -94,7 +93,7 @@ def clean_generation_unit_data(df: pd.DataFrame):
     }
 
 
-def clean_yes_forecast(df):
+def clean_yes_forecast(df) -> pd.DataFrame:
     """
     Function cleans the historical forecast from YES Energy
 
@@ -202,3 +201,23 @@ def clean_yes_actual(df) -> pd.DataFrame:
     out = df[["datetime", "load_actual", "net_load_actual", "wind_actual", "temperature_actual", "wind_speed_actual", "total_outages"]].dropna(subset=["datetime"])
 
     return out.sort_values("datetime").reset_index(drop=True)
+
+
+def reorder_columns(df: pd.DataFrame, lead_columns: list[str]) -> pd.DataFrame:
+    """
+    Move specified columns to the front of a DataFrame.
+
+    Parameters:
+        df: pandas DataFrame to reorder.
+        lead_columns: list of column names to place at the front, in the given order.
+            Any names not present in df are ignored.
+
+    Returns:
+        pandas DataFrame with columns reordered: the requested lead_columns first (in the
+        order provided), followed by the remaining columns in their original order.
+    """
+    tail_columns = [cols for cols in list(df.columns) if (cols not in lead_columns)]
+
+    df = df.loc[:, lead_columns +  tail_columns]
+
+    return df
