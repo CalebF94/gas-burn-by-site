@@ -3,9 +3,6 @@ Module containing functions for data cleaning
 """
 import pandas as pd
 import numpy as np
-#import time
-#import requests
-#from datetime import timedelta
 
 
 def clean_generation_unit_data(df: pd.DataFrame) -> dict:

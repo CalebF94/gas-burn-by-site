@@ -2,10 +2,7 @@
 Module containing functions for data gathering from Allegro/BigQuery
 """
 import pandas as pd
-#import numpy as np
-#import time
 import requests
-#from datetime import timedelta
 from google.cloud import bigquery
 import pydata_google_auth
 from scripts.constants import SITE_MAPPINGS
