@@ -1,11 +1,14 @@
 """
 Gather Historic Data
 
-Module is designed to gather and join historic data from multiple sources and store it in a format that can be used for further engineering and analysis.
+Orchestration module with the purpose creating a dataframe from historic data that can be used later in the pipeline process such as for fitting predictive models. Process steps include pulling data, joining data, basic data cleaning and feature engineering. 
+
 Data sources include:
 - Allegro Database via GCP
 - Yes Energy API
 - Excel Files from Network Drive
+
+Data processing steps that occur withing
 """
 
 import os
