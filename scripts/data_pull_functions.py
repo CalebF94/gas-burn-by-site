@@ -2,12 +2,36 @@
 Module containing functions for data gathering from Allegro/BigQuery
 """
 import pandas as pd
-import numpy as np
-import time
 import requests
-from datetime import timedelta
 from google.cloud import bigquery
+import pydata_google_auth
 from scripts.constants import SITE_MAPPINGS
+
+def login_google_cloud(project_name: str = "") -> bigquery.Client:
+    """
+    Authenticate with Google Cloud and create a BigQuery client.
+
+    Parameters:
+        project_name: Name of the Google Cloud project to attach to the client.
+            If left blank, the client will use the default project configuration
+            available to the authenticated account.
+
+    Returns:
+        bigquery.Client: Authenticated BigQuery client configured for the supplied
+        project and Google Cloud Platform access scope.
+
+    Notes:
+        This function launches a user-authentication flow using the Google Cloud
+        OAuth credentials helper and requests access to the Cloud Platform APIs.
+    """
+    credentials = pydata_google_auth.get_user_credentials(
+    scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    auth_local_webserver=True
+    )
+
+    client = bigquery.Client(project=project_name, credentials=credentials)
+
+    return client
 
 
 def _run_date_parameterized_query(client: bigquery.Client, query_string: str, start: str, end: str, col_dtypes: dict = None):
