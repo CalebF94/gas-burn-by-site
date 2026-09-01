@@ -75,3 +75,52 @@ def add_gas_burn_features(df: pd.DataFrame) -> pd.DataFrame:
                                            )
 
     return df
+
+
+def add_lag_features(df: pd.DataFrame) -> pd.Dataframe:
+    """
+        Add common lag-based features to a DataFrame containing an 'hourly_gas_burn_MMBtu' column.
+        Note: modifies the input DataFrame in place and returns it
+    
+        Parameters:
+            df: pandas DataFrame containing an 'hourly_gas_burn_MMBtu' column.
+    
+        Returns:
+            pandas DataFrame with the following lag columns added:
+                - gas_lag_1: returns the lagged values from hourly_gas_burn_MMBtu shifted by 1 rows
+                - gas_lag_24: returns the lagged values from hourly_gas_burn_MMBtu shifted by 24 rows (one day)
+                - gas_lag_168: returns the lagged values from hourly_gas_burn_MMBtu shifted by 168 rows (one week)
+    """
+    #sorting needed to ensure lags are calculated correctly
+    df = df.sort_values(["site", "datetime"])
+
+    df["gas_lag_1"] = (df.groupby("site")["hourly_gas_burn_MMBtu"].shift(1))
+
+    df["gas_lag_24"] = (df.groupby("site")["hourly_gas_burn_MMBtu"].shift(24))
+
+    df["gas_lag_168"] = (df.groupby("site")["hourly_gas_burn_MMBtu"].shift(168))
+
+    return df
+
+
+def add_rolling_features(df: pd.DataFrame) -> pd.Dataframe:
+    """
+        Add common rolling features to a DataFrame containing an 'hourly_gas_burn_MMBtu' column.
+        Note: modifies the input DataFrame in place and returns it
+    
+        Parameters:
+            df: pandas DataFrame containing an 'hourly_gas_burn_MMBtu' column.
+    
+        Returns:
+            pandas DataFrame with the following columns added:
+                - gas_roll_24: returns the previous 24-hour period rolling average of the hourly_gas_burn_MMBtu column
+                - gas_roll_168: returns the previous 168-hour period rolling average of the hourly_gas_burn_MMBtu column
+    """
+    #sorting needed to ensure lags are calculated correctly
+    df = df.sort_values(["site", "datetime"])
+
+    df["gas_roll_24"] = (df.groupby("site") ["hourly_gas_burn_MMBtu"].transform(lambda x: x.rolling(24).mean()))
+
+    df["gas_roll_168"] = (df.groupby("site")["hourly_gas_burn_MMBtu"].transform(lambda x: x.rolling(168).mean()))
+
+    return df

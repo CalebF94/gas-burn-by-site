@@ -25,7 +25,7 @@ from scripts.constants import SITE_MAPPINGS, SITE_BURN_DATATYPES, SITE_GENERATIO
 from scripts.data_pull_functions import run_natural_gas_burn_query, run_generation_query,  pull_unit_availability, pull_yes_forecast_historical, pull_yes_actual_historical
 from scripts.data_clean_functions import clean_generation_unit_data, clean_yes_actual, clean_yes_forecast, reorder_columns
 from scripts.merge_dataset_functions import merge_historic_data
-from scripts.feature_engineering_functions import add_time_features, add_gas_burn_features
+from scripts.feature_engineering_functions import add_time_features, add_gas_burn_features, add_lag_features, add_rolling_features
 
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -97,12 +97,18 @@ def gather_historic_data(start: str = str(date.today()), end: str = str(date.tod
     ####################
     merged_df = add_time_features(merged_df)
     merged_df = add_gas_burn_features(merged_df)
+    merged_df = add_lag_features(merged_df)
+    merged_df = add_rolling_features(merged_df)
+
+    #not sure I like this step, but it is what Clarissa was doing
+    merged_df = merged_df.dropna(subset=[ "gas_lag_1",  "gas_lag_24", "gas_lag_168", "gas_roll_24", "gas_roll_168"])
 
 
     #########################
     ## Rearranging Columns ##
     #########################
     merged_df = reorder_columns(merged_df, lead_columns)
+    merged_df = merged_df[merged_df['datetime'] < end]
 
 
     ##################
