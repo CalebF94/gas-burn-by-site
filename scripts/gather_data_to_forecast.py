@@ -85,7 +85,7 @@ def gather_data_to_forecast(forecast_start, forecast_end,
             folder.mkdir(parents=True)
         file_name = './data/processed-data/data_to_forecast_df.csv'
         future_data_to_forecast_df.to_csv(file_name, index=False)
-        print(f'A file containing the future data to has been saved to {file_name}')
+        print(f'The forecasting dataframe is saved to {file_name}')
 
 
     return future_data_to_forecast_df

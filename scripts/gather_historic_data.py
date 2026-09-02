@@ -65,11 +65,12 @@ def gather_historic_data(start: str = str(date.today()), end: str = str(date.tod
     if client is None:
         raise ValueError("A valid BigQuery client is required.")
 
-    gas_start = pd.to_datetime(start) - pd.Timedelta(1, unit='D')
+    gas_start = (pd.to_datetime(start) - pd.Timedelta(1, unit='D')).strftime("%Y-%m-%d")
     
     ######################
     ## Pulling Datasets ##
     ######################
+    print('Gathering historic data...', end="")
     gas_burn_daily_df = run_natural_gas_burn_query(client, query_strings=[GAS_BURN_QUERY], start=gas_start, end=end, col_dtypes=SITE_BURN_DATATYPES)
 
     generation_df = run_generation_query(client, [PGS_GENERATION_QUERY, NON_PGS_GENERATION_QUERY], start, end, SITE_GENERATION_DATATYPES)
@@ -120,6 +121,6 @@ def gather_historic_data(start: str = str(date.today()), end: str = str(date.tod
             folder.mkdir(parents=True)
         file_name = './data/processed-data/historic_data_df.csv'
         merged_df.to_csv(file_name, index=False)
-        print(f'A file containing the merged data has been saved to {file_name}')
+        print(f'\tThe historic dataframe is saved to {file_name}')
 
     return merged_df

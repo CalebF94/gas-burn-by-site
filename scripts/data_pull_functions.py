@@ -206,7 +206,7 @@ def pull_yes_forecast_historical(user, password, start_date, end_date):
 
 
 
-    print(f"Pulling forecast: {start.date()} ---> {end.date()}")
+    #print(f"Pulling forecast: {start.date()} ---> {end.date()}")
 
     url = ( "https://services.yesenergy.com/PS/rest/timeseries/multiple.json?agglevel=hour&timezone=CPT"
         f"&startdate={start}"
@@ -261,7 +261,7 @@ def pull_yes_actual_historical(user, password, start_date, end_date) -> pd.DataF
     df_actual = []
 
 
-    print(f"Pulling actuals: {start.date()} ---> {end.date()}")
+    #print(f"Pulling actuals: {start.date()} ---> {end.date()}")
 
     url = ("https://services.yesenergy.com/PS/rest/timeseries/multiple.json?agglevel=hour&timezone=CPT"
         f"&startdate={start.date()}"
