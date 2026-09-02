@@ -3,6 +3,7 @@ Module for modelling data
 """
 import numpy as np
 import pandas as pd
+import joblib
 from datetime import datetime
 from pathlib import Path
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -11,7 +12,17 @@ from xgboost import XGBRegressor
 from scripts.feature_engineering_functions import add_lag_features, add_rolling_features
 
 
-def fit_xgboost_clarissa_version(df: pd.DataFrame, sites = ['CGS', 'DCS', 'GGS', 'LCS', 'PGS'], test_start_date: str='2026-08-27', features: list=[], target: list=[]):
+def earliest_full_gas_day_with_forecast(predictions: pd.DataFrame):
+    """
+    """
+    daily_record_counts = predictions.groupby('gasday').count()['site'].reset_index()
+    full_gas_days = daily_record_counts[daily_record_counts['site']==max(daily_record_counts['site'])]['gasday']
+    full_gas_days = pd.to_datetime(full_gas_days)
+
+    return full_gas_days
+
+
+def fit_xgboost_clarissa_version(df: pd.DataFrame, sites = ['CGS', 'DCS', 'GGS', 'LCS', 'PGS'], test_start_date: str='2026-08-27', features: list=[], target: list=[], save_model_file: Path=None):
     """
     Train XGBoost regression models for each site with specified hyperparameters.
     
@@ -83,11 +94,18 @@ def fit_xgboost_clarissa_version(df: pd.DataFrame, sites = ['CGS', 'DCS', 'GGS',
 
         results[site] = {"mae": mean_abs_error, "rmse": root_mean_squared_error, "r2": r2}
 
+    if save_model_file:
+        today_ymd = datetime.today().strftime("%Y-%m-%d")
+        joblib.dump(models, f"G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Models/models {today_ymd}.joblib", compress=3)
+        print(f'The model details are saved to G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Models/models {today_ymd}.joblib')
+
+
+
     return {'models': models, 'results': results}
 
 
 
-def generate_feed_forward_forecast(historic_df: pd.DataFrame=[], forward_df: pd.DataFrame=[], models: list[XGBRegressor]=[], features: list[str]=[], save_output=False):
+def generate_feed_forward_forecast(historic_df: pd.DataFrame=[], forward_df: pd.DataFrame=[], models: list[XGBRegressor]=[], features: list[str]=[], save_output=False, save_file=None):
     """
     Generate sequential forecasts using a feed-forward approach with lag and rolling features.
     
@@ -146,6 +164,7 @@ def generate_feed_forward_forecast(historic_df: pd.DataFrame=[], forward_df: pd.
 
             # need to calculate the lag and rolling features each time a new datapoint (i.e. prediction) is added the site_full_df
             # Want to avoid updating the entire dataframe, so going to only update a 'window' of it using only the most recent records that are needed to get rolling/lag values from up to 2 weeks ago
+            #site_full_df.to_csv(Path('../data/output-data/site_full_check.csv')) ################## Remove after testing
             current_index = site_full_df.index.get_loc(date)
             start_index = max(0, current_index-336)
             window_df = site_full_df.iloc[start_index: current_index + 1].copy()
@@ -161,13 +180,13 @@ def generate_feed_forward_forecast(historic_df: pd.DataFrame=[], forward_df: pd.
 
             # Limiting to only the single datetime that is to be predicted. If the availability for that time <1 set forecast to 0
             record_to_predict = site_full_df.loc[[date], features]
-            prediction =  0 if record_to_predict['availability_mw'].values <=1 else site_model.predict(record_to_predict)[0]
+            prediction =  0 if record_to_predict['availability_mw'].values <=1 else max(0, site_model.predict(record_to_predict)[0])
 
 
             prediction_row = {
                 'site': site,
                 'datetime': date,
-                'gasday': (pd.to_datetime(date)- pd.Timedelta(hours=10)).date(),
+                'gasday': (pd.to_datetime(date)- pd.Timedelta(hours=9)).date(),
                 'hourly_gas_burn_MMBtu': prediction 
             }
 
@@ -179,17 +198,24 @@ def generate_feed_forward_forecast(historic_df: pd.DataFrame=[], forward_df: pd.
             predictions_by_site.append(prediction_row)
 
     predictions_by_site_df = pd.DataFrame(predictions_by_site)
+    predictions_by_site_df['HE'] = 'HE' + (predictions_by_site_df['datetime'] + pd.Timedelta(value=1, unit='h')).dt.strftime('%H')
+    predictions_by_site_df['HE'] = np.where(predictions_by_site_df['HE'] == 'HE00', 'HE24', predictions_by_site_df['HE'])
+    predictions_by_site_df['date'] = predictions_by_site_df['datetime'].dt.date
+    predictions_by_site_df['gasday'] = predictions_by_site_df['gasday'].astype('datetime64[us]')
+    predictions_by_site_df['gasday_of_week'] = predictions_by_site_df['gasday'].dt.strftime('%a')
+    predictions_by_site_df['effective_day_of_week'] = predictions_by_site_df['datetime'].dt.strftime('%a')
+    prediction_by_site_df = predictions_by_site_df.reindex(['site', 'datetime','date', 'effective_day_of_week', 'HE', 'gasday', 'gasday_of_week', 'hourly_gas_burn_MMBtu' ])
 
     ##################
     ## Confirmation ##
     ##################
     if save_output: 
-        folder = Path("./data/output-data/forecasts/")
-        if not folder.exists():
-            folder.mkdir(parents=True, exist_ok=True)
-        file_date = datetime.now().date()
-        file_name = folder / f'forecasts_{file_date}.csv'
+        file_name = save_file if save_file else f"G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Forecasts/Hourly Gas Burn by Site Forecasts - {datetime.now().strftime('%Y-%m-%d')}.csv"
+        #if not folder.exists():
+        #    folder.mkdir(parents=True, exist_ok=True)
+        #file_date = datetime.now().date()
+        #file_name = folder / f"Hourly Gas Burn by Site Forecasts - {datetime.now().strftime('%Y-%m-%d')}.csv"
         predictions_by_site_df.to_csv(file_name, index=False)
-        print(f'A file containing the future data to has been saved to {file_name}')
+        print(f'A file containing predictions has been saved to {file_name}')
 
     return predictions_by_site_df
