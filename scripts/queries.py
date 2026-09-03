@@ -1,19 +1,23 @@
 """
 Module contains sql queries that will pull from big query
 """
+import os
 
-GAS_BURN_QUERY = """
+PROJECT = os.getenv("PROJECT_ID", "bepc-prj-energy-prod")
+DATASET = os.getenv("DATASET_ID", "bepc_bq_energy_model")
+
+GAS_BURN_QUERY = f"""
 select
     upper(position.marketarea) as marketarea, 
     ngquantity.begtime as gas_day, 
     sum(ngquantity.energy) as energy,
     
 from
-    bepc-prj-energy-prod.bepc_bq_energy_model.Trade as trade
+    `{PROJECT}.{DATASET}.Trade` as trade
 inner join 
-    bepc-prj-energy-prod.bepc_bq_energy_model.Position as position ON trade.trade = position.trade
+    `{PROJECT}.{DATASET}.Position` as position ON trade.trade = position.trade
 inner join
-    bepc-prj-energy-prod.`bepc_bq_energy_model.NG_Quantity` as ngquantity ON position.position = ngquantity.position
+    `{PROJECT}.{DATASET}.NG_Quantity` as ngquantity ON position.position = ngquantity.position
 where 1=1
     AND position.bepc_strategy = "Burn" 
     AND trade.tradestatus <> "Void"
@@ -24,7 +28,7 @@ group by all
 order by ngquantity.begtime
 """
   
-NON_PGS_GENERATION_QUERY = """
+NON_PGS_GENERATION_QUERY = f"""
 select 
         begtime, 
         loadshape, 
@@ -52,7 +56,7 @@ select
         he22 as he22,
         he23 as he23,
         he24 as he24
-from bepc-prj-energy-prod.bepc_bq_energy_model.Loadshape_Profile
+from `{PROJECT}.{DATASET}.Loadshape_Profile`
 where 1=1
         and begtime between @start_date and @end_date
         and loadshape IN ('WAUE.BEPM.DCS1 - Net Generation',
@@ -62,7 +66,7 @@ group by all
 """
 
 
-PGS_GENERATION_QUERY = """
+PGS_GENERATION_QUERY = f"""
 SELECT 
   begtime, 
   loadshape, 
@@ -91,7 +95,7 @@ SELECT
   SUM(he23) as he23, 
   SUM(he24) as he24
 
-FROM bepc-prj-energy-prod.bepc_bq_energy_model.Loadshape_Profile
+FROM `{PROJECT}.{DATASET}.Loadshape_Profile`
 
 WHERE loadshape LIKE '%PGS%' AND loadshape LIKE '%- Net Generation-5m' AND begtime between @start_date and @end_date
 
