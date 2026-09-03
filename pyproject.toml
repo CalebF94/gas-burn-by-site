@@ -11,6 +11,7 @@ dependencies = [
     "google-auth>=2.56.1",
     "google-cloud-bigquery>=3.42.2",
     "google-cloud-bigquery-storage>=2.39.0",
+    "joblib>=1.5.3",
     "lxml>=6.1.1",
     "matplotlib>=3.11.0",
     "mssql>=1.0.1",
