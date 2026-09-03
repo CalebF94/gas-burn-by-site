@@ -1,7 +1,15 @@
 """
-feature_engineering_functions.py
+Module for feature engineering and creating derived features for gas burn prediction models.
 
-Module dedicated to performing feature engineering and creating new columns
+Functions create time-based features (hour, day of week, month, etc.), compute hourly gas burn
+estimates based on daily totals and generation patterns, and generate lag and rolling window
+features for temporal pattern modeling.
+
+Functions:
+    - add_time_features: Extract datetime components and calculate gas day
+    - add_gas_burn_features: Calculate hourly gas burn from daily totals
+    - add_lag_features: Create lagged features (1, 24, 168 hour lags)
+    - add_rolling_features: Create rolling averages (24, 168 hour windows)
 """
 import pandas as pd
 import numpy as np
@@ -77,19 +85,19 @@ def add_gas_burn_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def add_lag_features(df: pd.DataFrame) -> pd.Dataframe:
+def add_lag_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-        Add common lag-based features to a DataFrame containing an 'hourly_gas_burn_MMBtu' column.
-        Note: modifies the input DataFrame in place and returns it
-    
-        Parameters:
-            df: pandas DataFrame containing an 'hourly_gas_burn_MMBtu' column.
-    
-        Returns:
-            pandas DataFrame with the following lag columns added:
-                - gas_lag_1: returns the lagged values from hourly_gas_burn_MMBtu shifted by 1 rows
-                - gas_lag_24: returns the lagged values from hourly_gas_burn_MMBtu shifted by 24 rows (one day)
-                - gas_lag_168: returns the lagged values from hourly_gas_burn_MMBtu shifted by 168 rows (one week)
+    Add common lag-based features to a DataFrame containing an 'hourly_gas_burn_MMBtu' column.
+    Note: modifies the input DataFrame in place and returns it
+
+    Parameters:
+        df: pandas DataFrame containing an 'hourly_gas_burn_MMBtu' column.
+
+    Returns:
+        pandas DataFrame with the following lag columns added:
+            - gas_lag_1: returns the lagged values from hourly_gas_burn_MMBtu shifted by 1 rows
+            - gas_lag_24: returns the lagged values from hourly_gas_burn_MMBtu shifted by 24 rows (one day)
+            - gas_lag_168: returns the lagged values from hourly_gas_burn_MMBtu shifted by 168 rows (one week)
     """
     #sorting needed to ensure lags are calculated correctly
     df = df.sort_values(["site", "datetime"])
@@ -103,18 +111,18 @@ def add_lag_features(df: pd.DataFrame) -> pd.Dataframe:
     return df
 
 
-def add_rolling_features(df: pd.DataFrame) -> pd.Dataframe:
+def add_rolling_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-        Add common rolling features to a DataFrame containing an 'hourly_gas_burn_MMBtu' column.
-        Note: modifies the input DataFrame in place and returns it
-    
-        Parameters:
-            df: pandas DataFrame containing an 'hourly_gas_burn_MMBtu' column.
-    
-        Returns:
-            pandas DataFrame with the following columns added:
-                - gas_roll_24: returns the previous 24-hour period rolling average of the hourly_gas_burn_MMBtu column
-                - gas_roll_168: returns the previous 168-hour period rolling average of the hourly_gas_burn_MMBtu column
+    Add common rolling features to a DataFrame containing an 'hourly_gas_burn_MMBtu' column.
+    Note: modifies the input DataFrame in place and returns it
+
+    Parameters:
+        df: pandas DataFrame containing an 'hourly_gas_burn_MMBtu' column.
+
+    Returns:
+        pandas DataFrame with the following columns added:
+            - gas_roll_24: returns the previous 24-hour period rolling average of the hourly_gas_burn_MMBtu column
+            - gas_roll_168: returns the previous 168-hour period rolling average of the hourly_gas_burn_MMBtu column
     """
     #sorting needed to ensure lags are calculated correctly
     df = df.sort_values(["site", "datetime"])

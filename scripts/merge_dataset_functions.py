@@ -1,6 +1,4 @@
 """
-merge_datasets_functions.py
-
 Module dedicated to merging datasets used to build the modeling/analysis
 dataset.
 

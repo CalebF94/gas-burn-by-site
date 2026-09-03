@@ -8,7 +8,6 @@ Data sources include:
 - Yes Energy API
 - Excel Files from Network Drive
 
-Data processing steps that occur withing
 """
 
 import os
@@ -31,7 +30,7 @@ load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-def gather_historic_data(start: str = str(date.today()), end: str = str(date.today() - pd.Timedelta(1, unit='D')), 
+def gather_historic_data(start: str = str(date.today() - pd.Timedelta(1, unit='D')), end: str = str(date.today()), 
                          client: bigquery.Client = None,  lead_columns: list[str] = ['datetime', 'site'], 
                          yes_username: str = os.getenv('YES_USERNAME'), yes_password: str = os.getenv('YES_PASSWORD'),
                          save_output: bool = False) -> pd.DataFrame:
@@ -45,13 +44,13 @@ def gather_historic_data(start: str = str(date.today()), end: str = str(date.tod
     the columns, and optionally saves the final dataframe to disk.
 
     Parameters:
-        start: Earliest date to include in the pull, formatted as a date string.
-        end: Latest date to include in the pull, formatted as a date string.
+        start: Earliest date to include in the pull, formatted as a date string. Inclusive all hours of the start date will be included in the final dataset.
+        end: Latest date to include in the pull, formatted as a date string. Exclusive so all hours of the end date will be excluded in the final dataset, thus typically set to today's date.
         client: Authenticated BigQuery client used for Allegro/GCP queries.
         lead_columns: Column order to place at the front of the final dataframe.
         yes_username: YES Energy username used for historical API requests.
         yes_password: YES Energy password used for historical API requests.
-        save_output: If True, write the merged dataframe to
+        save_output: If True, write the merged dataframe within the project directory to
             ./data/processed-data/historic_data_df.csv.
 
     Returns:
@@ -61,7 +60,7 @@ def gather_historic_data(start: str = str(date.today()), end: str = str(date.tod
     Raises:
         ValueError: If no valid BigQuery client is supplied.
     """
-
+   
     if client is None:
         raise ValueError("A valid BigQuery client is required.")
 
@@ -70,7 +69,7 @@ def gather_historic_data(start: str = str(date.today()), end: str = str(date.tod
     ######################
     ## Pulling Datasets ##
     ######################
-    print('Gathering historic data...', end="")
+    print('Gathering historic data...')
     gas_burn_daily_df = run_natural_gas_burn_query(client, query_strings=[GAS_BURN_QUERY], start=gas_start, end=end, col_dtypes=SITE_BURN_DATATYPES)
 
     generation_df = run_generation_query(client, [PGS_GENERATION_QUERY, NON_PGS_GENERATION_QUERY], start, end, SITE_GENERATION_DATATYPES)
@@ -121,6 +120,6 @@ def gather_historic_data(start: str = str(date.today()), end: str = str(date.tod
             folder.mkdir(parents=True)
         file_name = './data/processed-data/historic_data_df.csv'
         merged_df.to_csv(file_name, index=False)
-        print(f'\tThe historic dataframe is saved to {file_name}')
+        print(f'The historic dataframe is saved within the gas-burn-by-site project directory to {file_name}')
 
     return merged_df

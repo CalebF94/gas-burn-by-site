@@ -1,5 +1,8 @@
 """
-Module containing functions for data cleaning
+Module containing functions for cleaning and preparing data from multiple sources:
+- Generation data from BigQuery (unit and site level aggregations with gas day calculations)
+- YES Energy historical forecasts and actuals (load, wind, temperature, outage data)
+- Utility functions for column reordering
 """
 import pandas as pd
 import numpy as np
@@ -7,14 +10,22 @@ import numpy as np
 
 def clean_generation_unit_data(df: pd.DataFrame) -> dict:
     """
-    Function that takes the unit generation data as input, creates a site variable, calculates gas day, and aggregates at different levels
+    Clean and aggregate unit-level generation data into multiple time/site aggregations.
+    
+    Takes raw unit generation data from BigQuery, extracts site identifiers from loadshape names,
+    calculates gas day timestamps (offset by 10 hours), unpivots hourly data, and aggregates
+    at unit, site, and daily levels.
 
     Parameters:
-        df: dataframe containing hourly unit level generation data
+        df: DataFrame containing hourly unit-level generation data with hourly columns (he01-he24)
+           and loadshape names that contain site identifiers (DCS, LCS, PGS, GGS, CULBERTSON)
 
-    Returns: 
-        A dictionary with cleaned generation dataframes at different aggregations. The four dictionary keys are:
-        'hourly_unit_generation_df', 'hourly_site_generation_df', 'daily_site_generation_by_gas_day_df', 'daily_site_generation_df':
+    Returns:
+        dict: Dictionary containing four DataFrames at different aggregation levels:
+            - 'hourly_unit_generation_df': Hourly generation at individual unit level (MW)
+            - 'hourly_site_generation_df': Hourly generation aggregated by site (MW)
+            - 'daily_site_generation_by_gas_day_df': Daily generation by gas day (MW)
+            - 'daily_site_generation_df': Daily generation by calendar day (MW)
     """
     unit_df = df.copy()
 
@@ -42,7 +53,6 @@ def clean_generation_unit_data(df: pd.DataFrame) -> dict:
     hourly_unit_generation_df["datetime"] = (pd.to_datetime(hourly_unit_generation_df["begtime"]) + pd.to_timedelta(hourly_unit_generation_df["hour_num"] - 0, unit="h"))
     hourly_unit_generation_df['gas_day'] = (pd.to_datetime(hourly_unit_generation_df["datetime"]) - pd.Timedelta(hours=10)).dt.date
     hourly_unit_generation_df['gas_day'] = pd.to_datetime(hourly_unit_generation_df['gas_day'])
-    #print(hourly_unit_generation_df['hourly_mw'].sum()) # may take out
 
 
     #Reordering columns for visual 
@@ -50,7 +60,6 @@ def clean_generation_unit_data(df: pd.DataFrame) -> dict:
         hourly_unit_generation_df[["datetime","gas_day", "hour", "site", "loadshape", "hourly_mw"]]
         .sort_values(by = ['site', 'datetime'], ascending=[False, True])
     )
-    #print(hourly_unit_generation_df['hourly_mw'].sum()) # may take out
 
 
     # Aggregating by site
@@ -60,7 +69,6 @@ def clean_generation_unit_data(df: pd.DataFrame) -> dict:
         .rename(columns={"hourly_mw": "hourly_site_gen_mw"})
         .sort_values(by = ['site', 'datetime'], ascending=[False, True])
     )
-    #print(hourly_site_generation_df['hourly_site_gen_mw'].sum()) # may take out
 
 
     daily_site_generation_by_gas_day_df = (
@@ -69,7 +77,6 @@ def clean_generation_unit_data(df: pd.DataFrame) -> dict:
         .rename(columns={"hourly_mw": "daily_site_gen_mw"})
         .sort_values(by = ['site', 'gas_day'], ascending=[False, True])
     )
-    #print(daily_site_generation_by_gas_day_df['hourly_site_gen_mw'].sum()) # may take out
 
 
     daily_site_generation_df = (
@@ -78,7 +85,6 @@ def clean_generation_unit_data(df: pd.DataFrame) -> dict:
         .rename(columns={"hourly_mw": "daily_site_gen_mw"})
         .sort_values(by = ['site', 'datetime'], ascending=[False, True])
     )
-    #print(daily_site_generation_df['hourly_site_gen_mw'].sum()) # may take out
 
 
 
@@ -92,13 +98,19 @@ def clean_generation_unit_data(df: pd.DataFrame) -> dict:
 
 def clean_yes_forecast(df) -> pd.DataFrame:
     """
-    Function cleans the historical forecast from YES Energy
+    Clean and aggregate historical forecast data from YES Energy API.
+    
+    Extracts forecast values from API response columns, converts datetime to hour-ending format,
+    aggregates wind forecasts across multiple zones, and aggregates temperature and wind speed
+    from multiple weather stations.
 
     Parameters:
-        df: dataframe returned from the pull_yes_forecast_historical() function
+        df: DataFrame returned from pull_yes_forecast_historical() function containing raw API response data
 
     Returns:
-        out: dataframe with cleaned and aggregated data
+        pd.DataFrame: Cleaned forecast data with columns: datetime, load_forecast, net_load_forecast,
+                      wind_forecast, temperature_forecast, wind_speed_forecast, total_offline_forecast,
+                      offline_ng_forecast, offline_coal_forecast. Sorted by datetime.
     """
     df = df.copy()
 
@@ -123,11 +135,9 @@ def clean_yes_forecast(df) -> pd.DataFrame:
 
     df["offline_coal_forecast"] = pd.to_numeric(df["SPPISO-East (COAL_CAPACITY_OFFLINE)"], errors="coerce")
 
-    #temperature avg of the zones (ask about this)
     temp_cols = [c for c in df.columns if "WSI_FC15_FEEL" in c]
     df["temperature_forecast"] = df[temp_cols].apply(pd.to_numeric, errors="coerce").mean(axis=1)
 
-    #wind speed avg of the reserve zones (also ask)
     wind_speed_cols = [c for c in df.columns if "WSI_FC15_WIND" in c]
     df["wind_speed_forecast"] = df[wind_speed_cols].apply(pd.to_numeric, errors="coerce").mean(axis=1)
 
@@ -141,13 +151,19 @@ def clean_yes_forecast(df) -> pd.DataFrame:
 
 def clean_yes_actual(df) -> pd.DataFrame:
     """
-    Function used to clean the actual/historical data from the pull_yes_actual_historical() function
+    Clean and aggregate actual historical data from YES Energy API.
+    
+    Extracts actual values from API response columns, converts datetime to hour-ending format,
+    aggregates wind actuals across multiple zones, and aggregates temperature and wind speed
+    from multiple weather stations. Handles cases where all values are zero (masked as NaN).
 
     Parameters:
-        df: pandas dataframe as returned from the pull_yes_actual_historical() function
+        df: DataFrame returned from pull_yes_actual_historical() function containing raw API response data
 
     Returns:
-        dataframe with cleaned YES Energy data
+        pd.DataFrame: Cleaned actual data with columns: datetime, load_actual, net_load_actual,
+                      wind_actual, temperature_actual, wind_speed_actual, total_outages.
+                      Sorted by datetime with rows missing datetime values removed.
     """
     df = df.copy()
 

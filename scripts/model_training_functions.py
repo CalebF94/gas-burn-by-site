@@ -1,5 +1,9 @@
 """
-Module for modelling data
+Module for training XGBoost models and generating gas burn forecasts by site.
+
+Functions:
+    - fit_xgboost_clarissa_version: Train site-specific XGBoost regression models
+    - generate_feed_forward_forecast: Generate sequential forecasts with feed-forward lag/rolling features
 """
 import numpy as np
 import pandas as pd
@@ -12,17 +16,7 @@ from xgboost import XGBRegressor
 from scripts.feature_engineering_functions import add_lag_features, add_rolling_features
 
 
-def earliest_full_gas_day_with_forecast(predictions: pd.DataFrame):
-    """
-    """
-    daily_record_counts = predictions.groupby('gasday').count()['site'].reset_index()
-    full_gas_days = daily_record_counts[daily_record_counts['site']==max(daily_record_counts['site'])]['gasday']
-    full_gas_days = pd.to_datetime(full_gas_days)
-
-    return full_gas_days
-
-
-def fit_xgboost_clarissa_version(df: pd.DataFrame, sites = ['CGS', 'DCS', 'GGS', 'LCS', 'PGS'], test_start_date: str='2026-08-27', features: list=[], target: list=[], save_model_file: Path=None):
+def fit_xgboost_clarissa_version(df: pd.DataFrame, sites = ['CGS', 'DCS', 'GGS', 'LCS', 'PGS'], test_start_date: str='2026-08-27', features: list=[], target: list=[], save_model_file: Path=None) -> dict:
     """
     Train XGBoost regression models for each site with specified hyperparameters.
     
@@ -43,6 +37,9 @@ def fit_xgboost_clarissa_version(df: pd.DataFrame, sites = ['CGS', 'DCS', 'GGS',
         List of feature column names to use as input variables for model training. Default is [].
     target : list, optional
         List containing the target variable name to predict. Default is [].
+    save_model_file : Path, optional
+        If provided, saves the trained models to a joblib file at the specified path with a timestamp.
+        Default is None (models are not saved to disk).
     
     Returns
     -------
@@ -97,7 +94,7 @@ def fit_xgboost_clarissa_version(df: pd.DataFrame, sites = ['CGS', 'DCS', 'GGS',
     if save_model_file:
         today_ymd = datetime.today().strftime("%Y-%m-%d")
         joblib.dump(models, f"G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Models/models {today_ymd}.joblib", compress=3)
-        print(f'The model details are saved to G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Models/models {today_ymd}.joblib')
+        print(f'A file with site model details is saved to G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Models/models {today_ymd}.joblib')
 
 
 
@@ -127,6 +124,11 @@ def generate_feed_forward_forecast(historic_df: pd.DataFrame=[], forward_df: pd.
         Default is [].
     features : list[str], optional
         List of feature column names used as input to the models. Default is [].
+    save_output : bool, optional
+        If True, saves the predictions dataframe to a CSV file. Default is False.
+    save_file : str, optional
+        Path/filename for saving output. If None and save_output is True, uses default path with timestamp.
+        Default is None.
     
     Returns
     -------
@@ -134,7 +136,11 @@ def generate_feed_forward_forecast(historic_df: pd.DataFrame=[], forward_df: pd.
         Dataframe with predicted gas burn values containing columns:
         - 'site': Site identifier
         - 'datetime': Prediction datetime
-        - 'gasday': Gas day (calculated as datetime minus 10 hours)
+        - 'date': Calendar date
+        - 'effective_day_of_week': Day of week for the datetime
+        - 'HE': Hour ending label (HE1-HE24)
+        - 'gasday': Gas day (calculated as datetime minus 9 hours)
+        - 'gasday_of_week': Day of week for the gas day
         - 'hourly_gas_burn_MMBtu': Predicted hourly gas burn value
     
     Notes
@@ -204,18 +210,14 @@ def generate_feed_forward_forecast(historic_df: pd.DataFrame=[], forward_df: pd.
     predictions_by_site_df['gasday'] = predictions_by_site_df['gasday'].astype('datetime64[us]')
     predictions_by_site_df['gasday_of_week'] = predictions_by_site_df['gasday'].dt.strftime('%a')
     predictions_by_site_df['effective_day_of_week'] = predictions_by_site_df['datetime'].dt.strftime('%a')
-    prediction_by_site_df = predictions_by_site_df.reindex(['site', 'datetime','date', 'effective_day_of_week', 'HE', 'gasday', 'gasday_of_week', 'hourly_gas_burn_MMBtu' ])
+    predictions_by_site_df = predictions_by_site_df[['site', 'datetime','date', 'effective_day_of_week', 'HE', 'gasday', 'gasday_of_week', 'hourly_gas_burn_MMBtu' ]]
 
     ##################
     ## Confirmation ##
     ##################
     if save_output: 
         file_name = save_file if save_file else f"G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Forecasts/Hourly Gas Burn by Site Forecasts - {datetime.now().strftime('%Y-%m-%d')}.csv"
-        #if not folder.exists():
-        #    folder.mkdir(parents=True, exist_ok=True)
-        #file_date = datetime.now().date()
-        #file_name = folder / f"Hourly Gas Burn by Site Forecasts - {datetime.now().strftime('%Y-%m-%d')}.csv"
         predictions_by_site_df.to_csv(file_name, index=False)
-        print(f'A file containing predictions has been saved to {file_name}')
+        print(f'A file with all hourly site predictions is saved to {file_name}')
 
     return predictions_by_site_df

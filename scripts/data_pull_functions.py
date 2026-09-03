@@ -1,5 +1,5 @@
 """
-Module containing functions for data gathering from Allegro/BigQuery
+Module containing functions for data gathering from Allegro/BigQuery, YES Energy APIs, and Unit Availability files. These functions will be used in the gather_historic_data.py orchestration script.
 """
 import pandas as pd
 import requests
@@ -43,7 +43,7 @@ def _run_date_parameterized_query(client: bigquery.Client, query_string: str, st
         query_string: SQL query 
         start: start date of SQL query
         end: end date of SQL query
-        col_types: column types of returned dataframe
+        col_dtypes: column types of returned dataframe
 
     Returns:
         dataframe: result of query
@@ -71,8 +71,10 @@ def run_generation_query(client: bigquery.Client, query_strings: list, start: st
         query_strings: SQL queries
         start: Earliest date of data to pull from database
         end: Latest date of data to pull from database
-        col_type: dictionary containing column name to datatype mappings
+        col_dtype: dictionary containing column name to datatype mappings
 
+     Returns: 
+        Pandas dataframe with the results of the query. If multiple queries are supplied, the results will be concatenated into a single dataframe   
     """
 
     dfs = {}
@@ -91,15 +93,18 @@ def run_generation_query(client: bigquery.Client, query_strings: list, start: st
 
 def run_natural_gas_burn_query(client: bigquery.Client, query_strings: list, start: str, end: str, col_dtypes: dict = None) -> pd.DataFrame:
     """
-    Function designed to pull generation data based on multiple SQL queries. SQL queries must contain the same column headers
+    Function designed to pull natural gas burn data based on multiple SQL queries. SQL queries must contain the same column headers.
 
     Parameters:
         client: Session bigquery.client object
         query_strings: SQL queries
         start: Earliest date of data to pull from database
         end: Latest date of data to pull from database
-        col_type: dictionary containing column name to datatype mappings
+        col_dtypes: Dictionary containing column name to datatype mappings
 
+    Returns:
+        pd.DataFrame: Combined dataframe from all queries with site mappings applied and columns
+        renamed to 'gas_day', 'site', and 'daily_gas_burn_MMBtu'.
     """
         
     dfs = {}
@@ -188,16 +193,16 @@ def pull_unit_availability(excel_files: list, csv_files: list, sheet: str='Sheet
 
 def pull_yes_forecast_historical(user, password, start_date, end_date):
     """
-    Function pulls forecast data from YES Energy via API. Note the hours here are hour ending which is different than Allegro I believe
+    Function pulls forecast data from YES Energy via API. Note the hours here are hour ending which is different than Allegro.
 
     Parameters:
-        user:
-        password:
-        start_date:
-        end_date:
+        user: YES Energy API username for authentication
+        password: YES Energy API password for authentication
+        start_date: First date of data to pull (will be converted to datetime)
+        end_date: Last date of data to pull (will be converted to datetime)
 
     Returns:
-        Dataframe 
+        pd.DataFrame: Forecast data from YES Energy API containing hourly load, wind, and capacity information
     """
     start = pd.to_datetime(start_date)
     end = pd.to_datetime(end_date)
@@ -243,16 +248,16 @@ def pull_yes_forecast_historical(user, password, start_date, end_date):
 
 def pull_yes_actual_historical(user, password, start_date, end_date) -> pd.DataFrame:
     """
-    Function to pull actual data from the YES Energy API.
+    Function to pull actual historical data from the YES Energy API.
 
     Parameters:
-        user: YES Energy API Username
-        password: YES Energy API Password
-        start_date: First date of data to pull
-        end_date: Last date of data to pull
+        user: YES Energy API username for authentication
+        password: YES Energy API password for authentication
+        start_date: First date of data to pull (will be converted to datetime)
+        end_date: Last date of data to pull (will be converted to datetime)
 
     Returns:
-        dataframe with data
+        pd.DataFrame: Actual data from YES Energy API containing hourly load, wind, temperature, and capacity information
     """
 
     start = pd.to_datetime(start_date)
