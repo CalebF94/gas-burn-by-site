@@ -49,7 +49,7 @@ AVAILABILITY_FILES_CSV = [
 
 ## Template files
 NEXT_DAY_GAS_BURN_TEMPLATE = "G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Next Day Gas Burn Files/Next Day Gas Burn Template.xlsx"
-NBPL_TEMPLATE = "G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/NBPL Submission Files/NBPL template.xlsx"
+NBPL_TEMPLATE = "G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/NBPL Submission Files/NBPL template no links.xlsx"
 
 ## Output directories
 OUTPUT_DIRS = {

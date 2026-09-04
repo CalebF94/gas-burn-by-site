@@ -151,7 +151,7 @@ def create_next_day_gas_burn_file(predictions: pd.DataFrame, template_file: str 
 
     #load file
     try:
-        next_day_gas_burn_wb = load_workbook(template_path, data_only=True)
+        next_day_gas_burn_wb = load_workbook(template_path)
         summary_ws = next_day_gas_burn_wb['Summary']
         hourly_gas_use_ws = next_day_gas_burn_wb['Hourly Gas Use']
 
@@ -176,10 +176,12 @@ def create_next_day_gas_burn_file(predictions: pd.DataFrame, template_file: str 
         formatted_predictions = formatted_predictions.reindex(columns=['gasday', 'gasday_of_week', 'DCS', 'GGS', 'CGS', 'PGS', 'LCS'])
 
         # range should contain 7 days for weekly forecast. Starts on row 3 in template. Limiting to shape[0] to avoid errors if a partial week is needed
+        """
         for df_row, excel_row in enumerate(range(3, 3+formatted_predictions.shape[0])): 
             for df_col, excel_col in enumerate(range(3, 10)):
                 summary_ws.cell(row=excel_row, column=excel_col, value=formatted_predictions.iloc[df_row, df_col])
                 #print(formatted_predictions.iloc[df_row, df_col])
+        """
 
 
         #update hourly gas use tab
