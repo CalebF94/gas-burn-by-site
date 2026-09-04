@@ -17,7 +17,7 @@ import urllib3
 from pathlib import Path
 from dotenv import load_dotenv
 
-from scripts.data_pull_functions import pull_yes_forecast_historical, pull_unit_availability
+from scripts.data_pull_functions import pull_yes_forecast_historical, pull_unit_availability, pull_and_transpose_raw_unit_availability
 from scripts.data_clean_functions import clean_yes_forecast
 from scripts.feature_engineering_functions import add_time_features
 from scripts.merge_dataset_functions import merge_data_to_forecast
@@ -50,10 +50,12 @@ def gather_data_to_forecast(forecast_start, forecast_end,
     if availability_file:
         latest_file = availability_file
     else:
-        directory = Path('G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Transposed Forward Looking Data')
+        #directory = Path('G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Transposed Forward Looking Data')
+        directory = Path ('G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Unit Availability Exports - Future')
         latest_file = str(max(directory.glob('*'), key=lambda f: f.stat().st_birthtime))
 
-    future_site_availability_df = pull_unit_availability(excel_files=[latest_file], csv_files=[], sheet='Transposed', start_date=forecast_start, end_date=forecast_end)['site_availability_df']
+    #future_site_availability_df = pull_unit_availability(excel_files=[latest_file], csv_files=[], sheet='Transposed', start_date=forecast_start, end_date=forecast_end)['site_availability_df']
+    future_site_availability_df = pull_and_transpose_raw_unit_availability(most_recent_file=latest_file, start_date = forecast_start, end_date = forecast_end)['site_availability_df']
 
 
     #############################

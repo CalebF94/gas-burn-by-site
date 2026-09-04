@@ -17,6 +17,7 @@ Mappings:
 
 ## Availability files - These will need to be updated every month as new files are saved
 AVAILABILITY_FILES_XLSX = [
+    "G:/Trading/Market Operations/Unit availability/2026/RT Unit availability 08.26.xlsx",
     "G:/Trading/Market Operations/Unit availability/2026/RT Unit availability 07.26.xlsx",
     "G:/Trading/Market Operations/Unit availability/2026/RT Unit availability 06.26.xlsx",
     "G:/Trading/Market Operations/Unit availability/2026/RT Unit availability 05.26.xlsx",
@@ -58,6 +59,10 @@ OUTPUT_DIRS = {
     "NBPL Submission Files": "G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/NBPL Submission Files",
     "Next Day Gas Burn Files": "G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Next Day Gas Burn Files"
 }
+
+## Site Identifiers
+SITES_LIST = ["CGS", "DCS", "LCS", "PGS", "GGS"]
+SITES_OR_LIST = '|'.join(SITES_LIST)
 
 ## Mapping dictionaries
 SITE_MAPPINGS = {

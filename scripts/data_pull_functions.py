@@ -3,9 +3,10 @@ Module containing functions for data gathering from Allegro/BigQuery, YES Energy
 """
 import pandas as pd
 import requests
+from pathlib import Path
 from google.cloud import bigquery
 import pydata_google_auth
-from scripts.constants import SITE_MAPPINGS
+from scripts.constants import SITE_MAPPINGS, SITES_OR_LIST
 
 def login_google_cloud(project_name: str = "") -> bigquery.Client:
     """
@@ -189,6 +190,71 @@ def pull_unit_availability(excel_files: list, csv_files: list, sheet: str='Sheet
         "unit_availability_df": unit_availability_df,
         "site_availability_df": site_availability_df
         }
+
+
+def _transpose_raw_unit_availability(raw_df: pd.DataFrame = None,
+                                    datetimes: pd.DatetimeIndex = None,
+                                    start_date = None,
+                                    end_date = None):
+    
+    
+    unit_availability_df = raw_df[ (raw_df['Name'].str.contains(SITES_OR_LIST, na=False)) & (raw_df['Name'].str.contains('High Effective Limit', na=False))].transpose()
+    col_names = unit_availability_df.iloc[0,:]
+    unit_availability_df = unit_availability_df.iloc[1:,:]
+    unit_availability_df.columns = col_names
+    unit_availability_df = unit_availability_df.reset_index(drop=True)
+    unit_availability_df.insert(loc=0, column='datetime', value=datetimes)
+    object_cols = unit_availability_df.select_dtypes(include=['object']).columns
+    unit_availability_df[object_cols] = unit_availability_df[object_cols].apply(pd.to_numeric, errors='coerce')
+
+    #replicating data cleaning for historic data
+    #Sorting chronologically
+    unit_availability_df = (unit_availability_df.sort_values("datetime").reset_index(drop=True))
+    
+    #Data cleaning and formatting
+    unit_availability_df.columns = unit_availability_df.columns.astype(str).str.strip().str.replace(r"\s+", " ", regex=True)
+
+    unit_availability_df = unit_availability_df.dropna(subset = ['datetime'], axis=0) # drops rows that don't have dates due to daylight savings shifts
+
+    value_cols = [col for col in unit_availability_df.columns if isinstance(col, str) and "High Effective Limit" in col]
+
+    unit_availability_df = unit_availability_df.melt(id_vars=["datetime"], value_vars=value_cols, var_name="unit", value_name="availability_mw")
+    
+    unit_availability_df["site"] = unit_availability_df["unit"].str.upper().str.extract(r"^(CGS|DCS|GGS|LCS|PGS)", expand=False).str.strip().str.upper()
+    unit_availability_df = unit_availability_df.sort_values(by=["site", "unit", "datetime"])[["datetime","site", "unit", "availability_mw"]]
+    unit_availability_df = unit_availability_df[(unit_availability_df['datetime'] >= start_date) & (unit_availability_df['datetime'] <= end_date)]
+
+    
+    site_availability_df = unit_availability_df.groupby(["datetime", 'site']).agg({"availability_mw": "sum"}).reset_index()
+    site_availability_df = site_availability_df.sort_values(by=["site", "datetime"])[["datetime","site", "availability_mw"]]
+    site_availability_df = site_availability_df[(site_availability_df['datetime'] >= start_date) & (site_availability_df['datetime'] <= end_date)]
+
+    return {
+        "unit_availability_df": unit_availability_df,
+        "site_availability_df": site_availability_df
+        }
+
+
+def pull_and_transpose_raw_unit_availability(most_recent_file = 'G:\\Trading\\Forecasts\\Daily Gas Burn Forecast by Site\\Unit Availability Exports - Future',
+                                             start_date = '2026-09-04',
+                                             end_date = '2026-09-13'):
+
+
+    #getting start and end dates from file name
+    file_name_words = str(most_recent_file).removesuffix(".csv").split("_")
+    start_time = file_name_words[-2]
+    end_time = file_name_words[-1]
+
+    # file name contains start and end times in YYYYMMDDHH format. Extracting that info and creating a datetime range
+    datetime_start = pd.Timestamp(year=int(start_time[:4]), month=int(start_time[4:6]), day=int(start_time[6:8]), hour=int(start_time[8:10]))
+    datetime_end = pd.Timestamp(year=int(end_time[:4]), month=int(end_time[4:6]), day=int(end_time[6:8]), hour=int(end_time[8:10]))
+    datetimes = pd.date_range(start=datetime_start, end=datetime_end, freq='h')
+
+    raw_df = pd.read_csv(most_recent_file).iloc[:, 1:]
+    
+    transposed_dfs = _transpose_raw_unit_availability(raw_df=raw_df, start_date=start_date, end_date=end_date, datetimes=datetimes)
+
+    return transposed_dfs
 
 
 def pull_yes_forecast_historical(user, password, start_date, end_date):
