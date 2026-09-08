@@ -252,7 +252,16 @@ def pull_historic_unit_availability(excel_files: list, csv_files: list, sheet: s
     site_availability_df = site_availability_df.sort_values(by=["site", "datetime"])[["datetime","site", "availability_mw"]]
     site_availability_df = site_availability_df[(site_availability_df['datetime'] >= start_date) & (site_availability_df['datetime'] <= end_date)]
 
-    #current_month_availability = pull_and_transpose_raw_unit_availability()
+
+    # Reading the current month availability file which will then be concatenated to prior months data
+    directory = Path ('G:/Trading/Forecasts/Daily Gas Burn Forecast by Site/Unit Availability Exports - Current Month')
+    latest_file = str(max(directory.glob('*'), key=lambda f: f.stat().st_birthtime))
+
+    #filtering will occur based on file name
+    current_month_dfs= pull_and_transpose_raw_unit_availability(most_recent_file=latest_file, start_date="1900-01-01", end_date="2100-01-01")
+
+    unit_availability_df = pd.concat([unit_availability_df, current_month_dfs['unit_availability_df']]).sort_values(by=['site', 'datetime'])
+    site_availability_df = pd.concat([site_availability_df, current_month_dfs['site_availability_df']]).sort_values(by=['site', 'datetime'])
 
     return {
         "unit_availability_df": unit_availability_df,
