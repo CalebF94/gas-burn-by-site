@@ -175,6 +175,12 @@ def create_next_day_gas_burn_file(predictions: pd.DataFrame, template_file: str 
         formatted_predictions = formatted_predictions.loc[formatted_predictions['gasday'].isin(forecasted_days)]
         formatted_predictions = formatted_predictions.reindex(columns=['gasday', 'gasday_of_week', 'DCS', 'GGS', 'CGS', 'PGS', 'LCS'])
 
+        for df_row, excel_row in enumerate(range(3, 3+formatted_predictions.shape[0])): 
+            #for df_col, excel_col in enumerate(range(3, 10)):
+            summary_ws.cell(row=excel_row, column=3, value=formatted_predictions.iloc[df_row, 0]) #update gas day
+            summary_ws.cell(row=excel_row, column=4, value=formatted_predictions.iloc[df_row, 1]) #update day of week
+            
+
         #update hourly gas use tab
         hourly_predictions_formatted = (
         predictions

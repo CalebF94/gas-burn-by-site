@@ -21,7 +21,7 @@ import urllib3
 
 from scripts.queries import GAS_BURN_QUERY, NON_PGS_GENERATION_QUERY, PGS_GENERATION_QUERY
 from scripts.constants import SITE_MAPPINGS, SITE_BURN_DATATYPES, SITE_GENERATION_DATATYPES, AVAILABILITY_FILES_XLSX, AVAILABILITY_FILES_CSV
-from scripts.data_pull_functions import run_natural_gas_burn_query, run_generation_query,  pull_unit_availability, pull_yes_forecast_historical, pull_yes_actual_historical
+from scripts.data_pull_functions import run_natural_gas_burn_query, run_generation_query,  pull_historic_unit_availability, pull_yes_forecast_historical, pull_yes_actual_historical
 from scripts.data_clean_functions import clean_generation_unit_data, clean_yes_actual, clean_yes_forecast, reorder_columns
 from scripts.merge_dataset_functions import merge_historic_data
 from scripts.feature_engineering_functions import add_time_features, add_gas_burn_features, add_lag_features, add_rolling_features
@@ -77,7 +77,7 @@ def gather_historic_data(start: str = str(date.today() - pd.Timedelta(1, unit='D
     site_generation_df = cleaned_generation_outputs['hourly_site_generation_df']
     site_generation_by_gas_day_df = cleaned_generation_outputs['daily_site_generation_by_gas_day_df']
 
-    site_availability_df = pull_unit_availability(AVAILABILITY_FILES_XLSX, AVAILABILITY_FILES_CSV, 'Gas HEL Transposed', start, end)['site_availability_df']
+    site_availability_df = pull_historic_unit_availability(AVAILABILITY_FILES_XLSX, AVAILABILITY_FILES_CSV, 'Gas HEL Transposed', start, end)['site_availability_df']
 
     yes_historical_forecast_df = pull_yes_forecast_historical(yes_username, yes_password, start_date=start, end_date = end)
     yes_historical_forecast_cleaned_df = clean_yes_forecast(yes_historical_forecast_df)

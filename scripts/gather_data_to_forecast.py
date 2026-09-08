@@ -17,7 +17,7 @@ import urllib3
 from pathlib import Path
 from dotenv import load_dotenv
 
-from scripts.data_pull_functions import pull_yes_forecast_historical, pull_unit_availability, pull_and_transpose_raw_unit_availability
+from scripts.data_pull_functions import pull_yes_forecast_historical, pull_historic_unit_availability, pull_and_transpose_raw_unit_availability
 from scripts.data_clean_functions import clean_yes_forecast
 from scripts.feature_engineering_functions import add_time_features
 from scripts.merge_dataset_functions import merge_data_to_forecast
