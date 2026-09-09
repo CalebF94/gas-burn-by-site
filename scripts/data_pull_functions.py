@@ -126,10 +126,26 @@ def run_natural_gas_burn_query(client: bigquery.Client, query_strings: list, sta
 
 
 
-def _transpose_raw_unit_availability(raw_df: pd.DataFrame = None,
-                                    datetimes: pd.DatetimeIndex = None,
-                                    start_date = None,
-                                    end_date = None):
+def _transpose_raw_unit_availability(raw_df: pd.DataFrame = None, datetimes: pd.DatetimeIndex = None, start_date = None, end_date = None):
+    """
+    Convert raw unit-availability export data into long-form unit and site level dataframes.
+
+    The raw export is transposed, filtered to the relevant site names and metric columns,
+    cleaned, and reshaped into a tidy format with one row per site/unit/datetime combination.
+    A second aggregated dataframe is also created at the site level by summing unit availability.
+
+    Parameters:
+        raw_df: Raw availability export imported from CSV. Expected to contain a 'Name' column
+            identifying site/unit rows and hourly or timestamped availability columns.
+        datetimes: DatetimeIndex of the hourly timestamps corresponding to the availability data.
+        start_date: Earliest datetime to keep in the output.
+        end_date: Latest datetime to keep in the output.
+
+    Returns:
+        dict: A dictionary containing:
+            - 'unit_availability_df': Long-form dataframe with columns ['datetime', 'site', 'unit', 'availability_mw']
+            - 'site_availability_df': Aggregated site-level dataframe with columns ['datetime', 'site', 'availability_mw']
+    """
     
     SITES_OR_LIST = '|'.join(["CGS", "DCS", "LCS", "PGS", "GGS"])
     unit_availability_df = raw_df[ (raw_df['Name'].str.contains(SITES_OR_LIST, na=False)) & (raw_df['Name'].str.contains('High Effective Limit', na=False))].transpose()
@@ -172,7 +188,25 @@ def _transpose_raw_unit_availability(raw_df: pd.DataFrame = None,
 def pull_and_transpose_raw_unit_availability(most_recent_file = 'G:\\Trading\\Forecasts\\Daily Gas Burn Forecast by Site\\Unit Availability Exports - Future',
                                              start_date = '2026-09-04',
                                              end_date = '2026-09-13'):
+    """
+    Read the most recent raw unit availability export and return cleaned site/unit availability data.
 
+    The function infers the hourly datetime range from the file name, loads the export CSV,
+    and then passes the data to the transposition and cleaning routine that standardizes the
+    format for downstream forecasting and availability processing.
+
+    Parameters:
+        most_recent_file: Path to the raw availability CSV file. File names are expected to end
+            with a date/time range in the format YYYYMMDDHH_YYYYMMDDHH. This format is the default
+            when exporting from PCI.
+        start_date: Earliest datetime to retain after transformation.
+        end_date: Latest datetime to retain after transformation.
+
+    Returns:
+        dict: Dictionary returned by _transpose_raw_unit_availability, containing:
+            - 'unit_availability_df': Unit-level availability dataframe
+            - 'site_availability_df': Site-level availability dataframe
+    """
 
     #getting start and end dates from file name
     file_name_words = str(most_recent_file).removesuffix(".csv").split("_")
