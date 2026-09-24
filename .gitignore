@@ -17,3 +17,8 @@ data/
 
 #vs code files
 settings.json
+
+#PyInstaller Outputs
+build/
+dist/
+*.spec
