@@ -203,6 +203,10 @@ def generate_feed_forward_forecast(historic_df: pd.DataFrame=[], forward_df: pd.
 
             predictions_by_site.append(prediction_row)
 
+        #remove if not helpful
+        with pd.ExcelWriter("C:/Users/A105158/OneDrive - Basin Electric Power Cooperative/Desktop/Python Projects/gas-burn-by-site/data/processed-data/site_full_check.xlsx", engine='openpyxl', mode='a', if_sheet_exists='replace') as writer: 
+                site_full_df.to_excel(writer, sheet_name=site, index=True)
+
     predictions_by_site_df = pd.DataFrame(predictions_by_site)
     predictions_by_site_df['HE'] = 'HE' + (predictions_by_site_df['datetime'] + pd.Timedelta(value=1, unit='h')).dt.strftime('%H')
     predictions_by_site_df['HE'] = np.where(predictions_by_site_df['HE'] == 'HE00', 'HE24', predictions_by_site_df['HE'])
